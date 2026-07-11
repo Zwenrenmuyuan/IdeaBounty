@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Backend code lives in `backend/src/idea_bounty/`: `api/` exposes FastAPI routes and dependencies, `services/` owns transactions, `schemas/` defines Pydantic boundaries, `models/` contains SQLAlchemy entities, `ai/` owns generation-model calls, `embedding/` owns vector configuration and provider calls, and `db/` owns persistence. Migrations are in `backend/alembic/`; tests are in `backend/tests/`. Root `compose.yaml` starts PostgreSQL using `infra/postgres/`. Treat `技术方案.md` as the approved architecture source. Production vector generation and internal candidate recall are implemented; LLM deduplication, total scoring, payout rules, and frontend are not.
+Backend code lives in `backend/src/idea_bounty/`: `api/` exposes FastAPI routes and dependencies, `services/` owns transactions, `schemas/` defines Pydantic boundaries, `models/` contains SQLAlchemy entities, `ai/` owns generation-model calls, `embedding/` owns vector configuration and provider calls, and `db/` owns persistence. Migrations are in `backend/alembic/`; tests are in `backend/tests/`. Root `compose.yaml` starts PostgreSQL using `infra/postgres/`. Treat `技术方案.md` as the approved architecture source. Production vector generation, internal candidate recall, and the LLM deduplication contract/probe are implemented; production LLM deduplication, total scoring, payout rules, and frontend are not.
 
 ## Build, Test, and Development Commands
 

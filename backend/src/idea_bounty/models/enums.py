@@ -86,6 +86,45 @@ class EvidenceField(StrEnum):
     VALUE_PROPOSITION = "value_proposition"
 
 
+class ComparisonAspect(StrEnum):
+    """查重结果允许公开比较的规范化字段。"""
+
+    TARGET_AUDIENCE = "target_audience"
+    PAIN_POINT = "pain_point"
+    CONTEXT = "context"
+    FREQUENCY_OR_SEVERITY = "frequency_or_severity"
+    CURRENT_ALTERNATIVE = "current_alternative"
+    DESIRED_OUTCOME = "desired_outcome"
+    PROPOSED_SOLUTION = "proposed_solution"
+    SOLUTION_MECHANISM = "solution_mechanism"
+    VALUE_PROPOSITION = "value_proposition"
+
+
+class PainRelation(StrEnum):
+    """当前点子与最佳候选之间的痛点关系。"""
+
+    SAME = "same"
+    RELATED = "related"
+    DIFFERENT = "different"
+
+
+class SolutionRelation(StrEnum):
+    """当前点子与最佳候选之间的方案关系。"""
+
+    SAME = "same"
+    RELATED = "related"
+    DIFFERENT = "different"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class DuplicateVerdict(StrEnum):
+    """查重模型对当前点子的最终结论。"""
+
+    DUPLICATE = "duplicate"
+    RELATED = "related"
+    NOVEL = "novel"
+
+
 class ManipulationSignal(StrEnum):
     """用户试图影响模型判断的内部审计信号。"""
 

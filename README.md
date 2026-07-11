@@ -1,6 +1,6 @@
 # Idea Bounty
 
-商业点子收集器 MVP。当前后端已实现本地账号会话、个人投稿、AI 输入门禁、五维结构化评估和生产 Embedding 向量生成；候选召回、LLM 查重、红包计算、管理员流程和前端仍待实现。
+商业点子收集器 MVP。当前后端已实现本地账号会话、个人投稿、AI 输入门禁、五维结构化评估、生产 Embedding 向量生成和内部候选召回；LLM 查重判定已有契约和探测脚本，但尚未接入投稿流水线。红包计算、管理员流程和前端仍待实现。
 
 ## 后端开发环境
 
@@ -21,6 +21,14 @@ PostgreSQL 容器首次启动时会创建 `idea_bounty` 开发数据库和独立
 
 ```bash
 uv run python scripts/probe_ai_provider.py --show-output
+```
+
+查重判定复用相同的 `AI_*` 配置。固定九个中文案例会分别调用一次模型，检查
+`duplicate / related / novel` 结构、关系组合和匹配候选，不会自动重试：
+
+```bash
+uv run python scripts/probe_duplicate_provider.py
+uv run python scripts/probe_duplicate_provider.py --show-output
 ```
 
 Embedding 服务使用独立的 `EMBEDDING_*` 配置。生产调用默认自动追加两次重试；能力探测脚本仍只进行显式请求，不自动重试。单次探测会批量检查向量结构和固定中文语义排序，比较稳定性时最多运行三次：
@@ -54,5 +62,5 @@ cd backend
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy src tests scripts/probe_ai_provider.py scripts/probe_embedding_provider.py
+uv run mypy src tests scripts/probe_ai_provider.py scripts/probe_embedding_provider.py scripts/probe_duplicate_provider.py
 ```

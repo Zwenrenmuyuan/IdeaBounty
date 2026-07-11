@@ -1,6 +1,8 @@
 """数据库模型及其枚举。"""
 
 from idea_bounty.models.enums import (
+    ComparisonAspect,
+    DuplicateVerdict,
     EvidenceField,
     FailureCode,
     FailureStage,
@@ -8,7 +10,9 @@ from idea_bounty.models.enums import (
     InformationSource,
     InputDecision,
     ManipulationSignal,
+    PainRelation,
     ScoreConfidence,
+    SolutionRelation,
     UserRole,
     UserStatus,
 )
@@ -17,6 +21,8 @@ from idea_bounty.models.user import User
 from idea_bounty.models.user_session import UserSession
 
 __all__ = [
+    "ComparisonAspect",
+    "DuplicateVerdict",
     "EvidenceField",
     "FailureCode",
     "FailureStage",
@@ -25,7 +31,9 @@ __all__ = [
     "InformationSource",
     "InputDecision",
     "ManipulationSignal",
+    "PainRelation",
     "ScoreConfidence",
+    "SolutionRelation",
     "User",
     "UserRole",
     "UserSession",
