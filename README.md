@@ -1,6 +1,6 @@
 # Idea Bounty
 
-商业点子收集器 MVP。当前后端已实现本地账号会话、个人投稿、AI 输入门禁、五维结构化评估、生产 Embedding、候选召回、LLM 查重、红包估值和管理员模拟打款闭环，并提供登录用户可查询的脱敏点子摘要。前端仍待实现。
+商业点子收集器 MVP。后端已实现本地账号会话、投稿处理、AI 评估、Embedding、查重、红包估值、管理员处理和模拟打款。React 前端已实现注册登录、个人投稿、结果详情、失败重试和匹配点子脱敏摘要；管理员操作页面仍待实现。
 
 ## 后端开发环境
 
@@ -52,6 +52,21 @@ uv run uvicorn idea_bounty.main:app --reload
 - 健康检查：<http://127.0.0.1:8000/api/health>
 - API 文档：<http://127.0.0.1:8000/docs>
 
+## 启动前端
+
+前端使用 React、Vite、TypeScript 和 Tailwind CSS。保持 API 运行在
+`127.0.0.1:8000`，再启动 Vite 开发服务器：
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+访问 <http://127.0.0.1:5173>。开发服务器将 `/api` 代理到 FastAPI；请求携带现有
+Cookie Session。当前使用同一套响应式页面覆盖桌面和移动端，不单独维护移动端应用。
+用户可以提交原文、查看处理状态、五维评分、查重结果、红包估值和模拟打款状态。
+
 接受的投稿会同步完成 Embedding 和查重。精确原文命中直接判重，无候选直接判为
 `novel`，存在语义候选时才调用生成模型。个人详情返回脱敏后的查重结论；登录用户可通过
 `GET /api/ideas/{public_id}/summary` 核对匹配点子的公开摘要。
@@ -78,3 +93,14 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src tests scripts/probe_ai_provider.py scripts/probe_embedding_provider.py scripts/probe_duplicate_provider.py
 ```
+
+## 前端质量检查
+
+在 `frontend/` 目录运行：
+
+```bash
+pnpm lint
+pnpm build
+```
+
+当前 MVP 还需人工检查桌面和手机宽度下的投稿列表、创建页、详情页和脱敏摘要页。

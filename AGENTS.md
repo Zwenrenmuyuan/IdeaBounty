@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Backend code lives in `backend/src/idea_bounty/`: `api/` exposes FastAPI routes and dependencies, `services/` owns transactions and deterministic bounty rules, `schemas/` defines Pydantic boundaries, `models/` contains SQLAlchemy entities, `ai/` owns generation-model calls, `embedding/` owns vector configuration and provider calls, and `db/` owns persistence. Migrations are in `backend/alembic/`; tests are in `backend/tests/`. Root `compose.yaml` starts PostgreSQL using `infra/postgres/`. Treat `技术方案.md` as the approved architecture source. Production vector generation, candidate recall, LLM deduplication, public summaries, bounty estimation, admin processing, and simulated payouts are implemented; frontend is not.
+Backend code lives in `backend/src/idea_bounty/`, migrations in `backend/alembic/`, and tests in `backend/tests/`. Frontend code lives in `frontend/src/`; use `pages/` for routes, `api/` for FastAPI calls, `components/` for UI, and `types/` for public contracts. Root `compose.yaml` starts PostgreSQL. Treat `技术方案.md` as the source. The backend loop and responsive user frontend are implemented; the administrator frontend is not.
 
 ## Build, Test, and Development Commands
 
@@ -20,13 +20,22 @@ uv run mypy src tests
 uv run alembic check
 ```
 
+Run frontend commands from `frontend/`:
+
+```bash
+pnpm install
+pnpm dev
+pnpm lint
+pnpm build
+```
+
 ## Coding Style & Naming Conventions
 
-Use Python 3.12, four-space indentation, and 100-character lines. Ruff controls formatting. Use `snake_case` for functions/modules, `PascalCase` for classes, and `UPPER_CASE` for constants. Keep identifiers in English and comments/docstrings in concise Chinese. Public functions require full type annotations.
+Use Python 3.12, four-space indentation, and 100-character lines; Ruff controls formatting. TypeScript components use `PascalCase`, functions and modules use `camelCase` or kebab-case filenames following the existing frontend. Keep identifiers in English and comments/docstrings in concise Chinese. Prefer Tailwind responsive utilities over separate desktop/mobile components.
 
 ## Testing Guidelines
 
-Use pytest and FastAPI TestClient. Name files `test_<feature>.py` and tests `test_<expected_behavior>`. Database fixtures reject names without `_test`; never target `idea_bounty`. Cover success, validation failure, constraints, migrations, and authorization. Authentication tests include Cookie expiry/revocation and disabled users. Idea tests include ownership isolation, idempotency, AI/Embedding/deduplication transitions, retries, candidate filtering, and public-summary redaction. Update cleanup fixtures when adding tables; all automated generation-model and Embedding calls must use a fake provider or HTTP Mock.
+Use pytest and FastAPI TestClient. Name files `test_<feature>.py` and tests `test_<expected_behavior>`. Database fixtures reject names without `_test`; never target `idea_bounty`. Cover validation, constraints, migrations, authorization, idempotency and pipeline transitions. Automated AI and Embedding calls must use fakes or HTTP Mocks. Frontend changes must pass `pnpm lint` and `pnpm build`; manually check affected desktop and mobile layouts until browser tests are added.
 
 ## Database & Migration Rules
 
@@ -40,4 +49,4 @@ Use Conventional Commits, for example `feat(backend): 实现点子投稿基础�
 
 Copy `backend/.env.example` to `.env`; never commit credentials, raw tokens, or machine paths. Compose credentials are local-only. Derive ownership from the authenticated user; never accept client-provided `user_id`. Do not expose password/token hashes, internal IDs, or content hashes.
 
-Implement only the approved milestone. Explain files and acceptance criteria before editing, leave changes uncommitted unless asked, show the diff and checks afterward, and never continue automatically into later business sections.
+Implement only the approved milestone. Explain scope before editing, leave changes uncommitted unless asked, and show the diff and checks afterward.
