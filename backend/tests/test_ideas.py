@@ -69,6 +69,9 @@ def test_create_idea_preserves_raw_content_and_hides_internal_fields(
         "base_amount",
         "duplicate_deduction",
         "final_amount",
+        "admin_action",
+        "payout_status",
+        "payout",
     }
     assert response.json()["submission_key"] == str(submission_key)
     assert response.json()["raw_content"] == raw_content

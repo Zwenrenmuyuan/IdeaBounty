@@ -70,7 +70,9 @@ def test_engine() -> Generator[Engine, None, None]:
 def clean_database(test_engine: Engine) -> Generator[None, None, None]:
     """在每个数据库测试前后清空认证表。"""
 
-    truncate_statement = text("TRUNCATE TABLE ideas, sessions, users RESTART IDENTITY CASCADE")
+    truncate_statement = text(
+        "TRUNCATE TABLE simulated_payouts, ideas, sessions, users RESTART IDENTITY CASCADE"
+    )
     with test_engine.begin() as connection:
         connection.execute(truncate_statement)
 

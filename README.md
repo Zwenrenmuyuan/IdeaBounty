@@ -1,6 +1,6 @@
 # Idea Bounty
 
-商业点子收集器 MVP。当前后端已实现本地账号会话、个人投稿、AI 输入门禁、五维结构化评估、生产 Embedding、候选召回、LLM 查重和红包估值闭环，并提供登录用户可查询的脱敏点子摘要。管理员流程和前端仍待实现。
+商业点子收集器 MVP。当前后端已实现本地账号会话、个人投稿、AI 输入门禁、五维结构化评估、生产 Embedding、候选召回、LLM 查重、红包估值和管理员模拟打款闭环，并提供登录用户可查询的脱敏点子摘要。前端仍待实现。
 
 ## 后端开发环境
 
@@ -56,6 +56,15 @@ uv run uvicorn idea_bounty.main:app --reload
 `novel`，存在语义候选时才调用生成模型。个人详情返回脱敏后的查重结论；登录用户可通过
 `GET /api/ideas/{public_id}/summary` 核对匹配点子的公开摘要。
 查重完成后，后端使用固定五维权重和 `Decimal` 二次曲线计算 `0–100` 商业分与 `0–100` 元估值；有效结论为 `duplicate` 时金额归零，客户端不能指定或修改金额。
+
+先注册一个普通账号，再从 `backend/` 将它提升为管理员：
+
+```bash
+uv run python scripts/promote_admin.py <username>
+```
+
+管理员可以通过 `/api/admin/ideas` 查看投稿，通过
+`POST /api/admin/ideas/{public_id}/process` 确认当前金额、调整后确认或驳回。正金额会在同一事务中生成 `SIM-` 开头的模拟流水；该记录不对应任何真实支付。
 
 ## 后端质量检查
 

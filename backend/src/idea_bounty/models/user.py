@@ -53,5 +53,6 @@ class User(Base):
     ideas: Mapped[list[Idea]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
+        foreign_keys="Idea.user_id",
         passive_deletes=True,
     )

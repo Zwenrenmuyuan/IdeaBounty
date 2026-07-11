@@ -133,6 +133,14 @@ class DuplicateMethod(StrEnum):
     LLM_CANDIDATES = "llm_candidates"
 
 
+class AdminAction(StrEnum):
+    """管理员对完成投稿执行的最终动作。"""
+
+    CONFIRMED = "confirmed"
+    ADJUSTED = "adjusted"
+    REJECTED = "rejected"
+
+
 class ManipulationSignal(StrEnum):
     """用户试图影响模型判断的内部审计信号。"""
 

@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 import re
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import UUID4, BaseModel, ConfigDict, Field, field_validator
 
-from idea_bounty.models import DuplicateVerdict, IdeaProcessingStatus, InputDecision
+from idea_bounty.models import AdminAction, DuplicateVerdict, IdeaProcessingStatus, InputDecision
 from idea_bounty.schemas.ai import EvaluationScores, NormalizedContent
 from idea_bounty.schemas.duplicate import DuplicateComparisonSnapshot
 
@@ -81,6 +81,14 @@ class IdeaDuplicateResultResponse(BaseModel):
     reason: str
 
 
+class SimulatedPayoutResponse(BaseModel):
+    """用户和管理员均可查看的虚拟打款凭证。"""
+
+    amount: float
+    reference: str
+    confirmed_at: datetime
+
+
 class IdeaResponse(IdeaSummaryResponse):
     """创建和个人详情接口返回的完整评估结果。"""
 
@@ -92,6 +100,9 @@ class IdeaResponse(IdeaSummaryResponse):
     base_amount: float | None
     duplicate_deduction: float | None
     final_amount: float | None
+    admin_action: AdminAction | None
+    payout_status: Literal["not_ready", "awaiting_admin", "confirmed", "not_applicable"]
+    payout: SimulatedPayoutResponse | None
 
     @classmethod
     def from_idea(
@@ -120,6 +131,17 @@ class IdeaResponse(IdeaSummaryResponse):
                 float(idea.duplicate_deduction) if idea.duplicate_deduction is not None else None
             ),
             final_amount=float(idea.final_amount) if idea.final_amount is not None else None,
+            admin_action=AdminAction(idea.admin_action) if idea.admin_action is not None else None,
+            payout_status=get_payout_status(idea),
+            payout=(
+                SimulatedPayoutResponse(
+                    amount=float(idea.payout.amount),
+                    reference=idea.payout.reference,
+                    confirmed_at=idea.payout.confirmed_at,
+                )
+                if idea.payout is not None
+                else None
+            ),
         )
 
 
@@ -161,6 +183,23 @@ class PublicIdeaSummary(BaseModel):
             solution_outline=_safe_public_text(content.solution_mechanism.value),
             created_date=idea.created_at.date(),
         )
+
+
+def get_payout_status(
+    idea: Idea,
+) -> Literal["not_ready", "awaiting_admin", "confirmed", "not_applicable"]:
+    """由现有状态推导用户可见的模拟打款状态。"""
+
+    if (
+        idea.processing_status != IdeaProcessingStatus.COMPLETED.value
+        or idea.input_decision != InputDecision.ACCEPT.value
+    ):
+        return "not_ready"
+    if idea.admin_action is None:
+        return "awaiting_admin"
+    if idea.payout is not None:
+        return "confirmed"
+    return "not_applicable"
 
 
 SENSITIVE_PATTERNS = (

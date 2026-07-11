@@ -46,7 +46,9 @@ def _make_idea(user: User, content: str = "这是一个用于数据库测试的�
 def test_migration_creates_expected_schema(test_engine: Engine) -> None:
     inspector = inspect(test_engine)
 
-    assert {"alembic_version", "ideas", "sessions", "users"} <= set(inspector.get_table_names())
+    assert {"alembic_version", "ideas", "sessions", "simulated_payouts", "users"} <= set(
+        inspector.get_table_names()
+    )
     assert {constraint["name"] for constraint in inspector.get_unique_constraints("users")} == {
         "uq_users_username"
     }
@@ -71,6 +73,9 @@ def test_migration_creates_expected_schema(test_engine: Engine) -> None:
         "ck_ideas_completed_at_matches_status",
         "ck_ideas_checking_duplicate_requires_embedding",
         "ck_ideas_ai_duplicate_verdict_allowed",
+        "ck_ideas_admin_action_allowed",
+        "ck_ideas_admin_action_valid",
+        "ck_ideas_admin_fields_together",
         "ck_ideas_bounty_fields_together",
         "ck_ideas_bounty_matches_completed_accept",
         "ck_ideas_bounty_values_valid",
@@ -124,6 +129,11 @@ def test_migration_creates_expected_schema(test_engine: Engine) -> None:
         "base_amount",
         "duplicate_deduction",
         "final_amount",
+        "admin_action",
+        "admin_amount",
+        "admin_reason",
+        "processed_by_admin_id",
+        "admin_processed_at",
         "failure_stage",
         "failure_code",
         "completed_at",
@@ -151,6 +161,15 @@ def test_migration_creates_expected_schema(test_engine: Engine) -> None:
     assert idea_foreign_key["options"]["ondelete"] == "CASCADE"
     matched_foreign_key = idea_foreign_keys["fk_ideas_matched_idea_id_ideas"]
     assert matched_foreign_key["options"]["ondelete"] == "RESTRICT"
+    admin_foreign_key = idea_foreign_keys["fk_ideas_processed_by_admin_id_users"]
+    assert admin_foreign_key["options"]["ondelete"] == "RESTRICT"
+
+    assert {
+        constraint["name"] for constraint in inspector.get_check_constraints("simulated_payouts")
+    } == {"ck_simulated_payouts_amount_range"}
+    assert {
+        constraint["name"] for constraint in inspector.get_unique_constraints("simulated_payouts")
+    } == {"uq_simulated_payouts_idea_id", "uq_simulated_payouts_reference"}
 
 
 def test_user_and_session_can_be_persisted(db_session: Session) -> None:

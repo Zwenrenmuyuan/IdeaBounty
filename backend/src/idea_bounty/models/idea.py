@@ -29,6 +29,7 @@ from idea_bounty.db.base import Base
 from idea_bounty.models.enums import IdeaProcessingStatus
 
 if TYPE_CHECKING:
+    from idea_bounty.models.simulated_payout import SimulatedPayout
     from idea_bounty.models.user import User
 
 
@@ -192,13 +193,34 @@ class Idea(Base):
             "AND base_amount BETWEEN 0 AND 100 "
             "AND duplicate_deduction BETWEEN 0 AND base_amount "
             "AND final_amount BETWEEN 0 AND 100 "
-            "AND base_amount = duplicate_deduction + final_amount)",
+            "AND ((admin_action IS NULL "
+            "AND base_amount = duplicate_deduction + final_amount) OR "
+            "(admin_action IS NOT NULL AND final_amount = admin_amount)))",
             name="bounty_values_valid",
         ),
         CheckConstraint(
             "(commercial_score IS NOT NULL) = "
             "(processing_status = 'completed' AND input_decision = 'accept')",
             name="bounty_matches_completed_accept",
+        ),
+        CheckConstraint(
+            "admin_action IS NULL OR admin_action IN ('confirmed', 'adjusted', 'rejected')",
+            name="admin_action_allowed",
+        ),
+        CheckConstraint(
+            "((admin_action IS NULL AND admin_amount IS NULL AND admin_reason IS NULL "
+            "AND processed_by_admin_id IS NULL AND admin_processed_at IS NULL) OR "
+            "(admin_action IS NOT NULL AND admin_amount IS NOT NULL "
+            "AND processed_by_admin_id IS NOT NULL AND admin_processed_at IS NOT NULL))",
+            name="admin_fields_together",
+        ),
+        CheckConstraint(
+            "admin_action IS NULL OR "
+            "(processing_status = 'completed' AND input_decision = 'accept' "
+            "AND admin_amount BETWEEN 0 AND 100 "
+            "AND (admin_action = 'confirmed' OR admin_reason IS NOT NULL) "
+            "AND (admin_action <> 'rejected' OR admin_amount = 0))",
+            name="admin_action_valid",
         ),
         UniqueConstraint(
             "user_id",
@@ -287,6 +309,17 @@ class Idea(Base):
     base_amount: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     duplicate_deduction: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     final_amount: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    admin_action: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    admin_amount: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    admin_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processed_by_admin_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    admin_processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     failure_stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
     failure_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -302,4 +335,10 @@ class Idea(Base):
         nullable=False,
     )
 
-    user: Mapped[User] = relationship(back_populates="ideas")
+    user: Mapped[User] = relationship(back_populates="ideas", foreign_keys=[user_id])
+    payout: Mapped[SimulatedPayout | None] = relationship(
+        back_populates="idea",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
+    )
