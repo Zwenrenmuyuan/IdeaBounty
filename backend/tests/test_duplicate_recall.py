@@ -41,6 +41,8 @@ def _add_idea(
     embedding_model: str = EMBEDDING_MODEL,
     embedding_input_version: str = EMBEDDING_INPUT_VERSION,
     content_hash: str | None = None,
+    duplicate_verdict: str = "novel",
+    matched_idea_id: int | None = None,
 ) -> Idea:
     output = make_evaluation_output(decision)
     idea = Idea(
@@ -63,6 +65,36 @@ def _add_idea(
         embedding_model=embedding_model if embedding is not None else None,
         embedding_dimensions=len(embedding) if embedding is not None else None,
         embedding_input_version=embedding_input_version if embedding is not None else None,
+        duplicate_method=(
+            ("exact_hash" if duplicate_verdict == "duplicate" else "no_candidates")
+            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
+            else None
+        ),
+        ai_duplicate_verdict=(
+            duplicate_verdict
+            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
+            else None
+        ),
+        effective_duplicate_verdict=(
+            duplicate_verdict
+            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
+            else None
+        ),
+        duplicate_confidence=(
+            "high"
+            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
+            else None
+        ),
+        matched_idea_id=(
+            matched_idea_id
+            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
+            else None
+        ),
+        duplicate_reason=(
+            "历史查重测试快照"
+            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
+            else None
+        ),
         failure_stage="checking_duplicate" if status == IdeaProcessingStatus.FAILED.value else None,
         failure_code="provider_error" if status == IdeaProcessingStatus.FAILED.value else None,
         completed_at=(
@@ -228,6 +260,14 @@ def test_semantic_recall_filters_ineligible_candidates(db_session: Session) -> N
     alice = _add_user(db_session, "alice")
     bob = _add_user(db_session, "bob")
     eligible = _add_idea(db_session, bob.id, "跨用户有效候选", embedding=_vector())
+    _add_idea(
+        db_session,
+        bob.id,
+        "应被排除的有效重复记录",
+        embedding=_vector(),
+        duplicate_verdict="duplicate",
+        matched_idea_id=eligible.internal_id,
+    )
     _add_idea(
         db_session,
         alice.id,

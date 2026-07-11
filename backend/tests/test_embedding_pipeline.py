@@ -12,6 +12,7 @@ from idea_bounty.models import FailureCode, Idea, IdeaProcessingStatus, User
 from idea_bounty.services.idea import create_or_get_idea
 from idea_bounty.services.pipeline import process_idea_pipeline
 from tests.ai_fakes import FakeEvaluationProvider, make_evaluation_output
+from tests.duplicate_fakes import FakeDuplicateProvider
 from tests.embedding_fakes import FakeEmbeddingProvider, make_embedding_result
 
 PASSWORD = "correct horse battery staple"
@@ -45,7 +46,7 @@ def test_accept_calls_embedding_once_and_persists_vector_snapshot(
     response = submit(client)
 
     assert response.status_code == 201
-    assert response.json()["processing_status"] == "checking_duplicate"
+    assert response.json()["processing_status"] == "completed"
     assert embedding_provider.call_count == 1
     assert embedding_provider.texts == [
         "目标用户：社区独居老人\n"
@@ -145,7 +146,7 @@ def test_idempotent_replay_does_not_repeat_embedding(
 
     assert first_response.status_code == 201
     assert replay_response.status_code == 200
-    assert replay_response.json()["processing_status"] == "checking_duplicate"
+    assert replay_response.json()["processing_status"] == "completed"
     assert embedding_provider.call_count == 1
 
 
@@ -174,6 +175,7 @@ def test_concurrent_replay_during_embedding_does_not_call_second_provider(
                 same_idea,
                 second_evaluation,
                 second_embedding,
+                FakeDuplicateProvider(),
             )
 
     first_embedding = FakeEmbeddingProvider(on_embed=replay_during_embedding)
@@ -182,9 +184,10 @@ def test_concurrent_replay_during_embedding_does_not_call_second_provider(
         creation.idea,
         FakeEvaluationProvider(),
         first_embedding,
+        FakeDuplicateProvider(),
     )
 
-    assert processed.processing_status == IdeaProcessingStatus.CHECKING_DUPLICATE.value
+    assert processed.processing_status == IdeaProcessingStatus.COMPLETED.value
     assert first_embedding.call_count == 1
     assert second_evaluation.call_count == 0
     assert second_embedding.call_count == 0
@@ -210,7 +213,7 @@ def test_retry_embedding_failure_does_not_repeat_evaluation(
 
     assert create_response.json()["processing_status"] == "failed"
     assert retry_response.status_code == 200
-    assert retry_response.json()["processing_status"] == "checking_duplicate"
+    assert retry_response.json()["processing_status"] == "completed"
     assert retry_response.json()["retry_count"] == 1
     assert evaluation_provider.call_count == 1
     assert embedding_provider.call_count == 2

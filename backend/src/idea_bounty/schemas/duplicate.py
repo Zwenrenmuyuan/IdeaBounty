@@ -252,6 +252,50 @@ class DuplicateJudgmentOutput(StrictAIModel):
         return self
 
 
+class DuplicateComparisonSnapshot(StrictAIModel):
+    """允许持久化并向用户投影的查重比较快照。"""
+
+    pain_relation: PainRelation
+    solution_relation: SolutionRelation
+    same_aspects: list[ComparisonAspect] = Field(max_length=9)
+    different_aspects: list[ComparisonAspect] = Field(max_length=9)
+    added_value: str = Field(min_length=1, max_length=300)
+
+    @field_validator("same_aspects", "different_aspects")
+    @classmethod
+    def validate_unique_aspects(
+        cls,
+        value: list[ComparisonAspect],
+    ) -> list[ComparisonAspect]:
+        if len(value) != len(set(value)):
+            raise PydanticCustomError(
+                "duplicate_comparison_aspects",
+                "比较字段不能重复",
+            )
+        return value
+
+    @model_validator(mode="after")
+    def validate_disjoint_aspects(self) -> Self:
+        if set(self.same_aspects) & set(self.different_aspects):
+            raise PydanticCustomError(
+                "overlapping_comparison_aspects",
+                "相同点和不同点不能引用同一字段",
+            )
+        return self
+
+    @classmethod
+    def from_judgment(cls, output: DuplicateJudgmentOutput) -> DuplicateComparisonSnapshot:
+        """从完整模型结论提取不含内部候选 ID 的持久化快照。"""
+
+        return cls(
+            pain_relation=output.pain_relation,
+            solution_relation=output.solution_relation,
+            same_aspects=output.same_aspects,
+            different_aspects=output.different_aspects,
+            added_value=output.added_value,
+        )
+
+
 def validate_duplicate_judgment_json(
     content: str,
     comparison: DuplicateComparisonInput,

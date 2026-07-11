@@ -2,6 +2,7 @@
 
 from idea_bounty.models.enums import (
     ComparisonAspect,
+    DuplicateMethod,
     DuplicateVerdict,
     EvidenceField,
     FailureCode,
@@ -22,6 +23,7 @@ from idea_bounty.models.user_session import UserSession
 
 __all__ = [
     "ComparisonAspect",
+    "DuplicateMethod",
     "DuplicateVerdict",
     "EvidenceField",
     "FailureCode",

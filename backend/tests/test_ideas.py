@@ -63,10 +63,11 @@ def test_create_idea_preserves_raw_content_and_hides_internal_fields(
         "decision_reason",
         "clarification_question",
         "evaluation",
+        "duplicate_result",
     }
     assert response.json()["submission_key"] == str(submission_key)
     assert response.json()["raw_content"] == raw_content
-    assert response.json()["processing_status"] == "checking_duplicate"
+    assert response.json()["processing_status"] == "completed"
     assert response.json()["input_decision"] == "accept"
     assert response.json()["evaluation"]["demand_breadth"]["score"] == 3
     assert response.json()["retry_count"] == 0
@@ -76,7 +77,7 @@ def test_create_idea_preserves_raw_content_and_hides_internal_fields(
     assert stored_idea is not None
     assert stored_idea.raw_content == raw_content
     assert len(stored_idea.content_hash) == 64
-    assert stored_idea.processing_status == IdeaProcessingStatus.CHECKING_DUPLICATE.value
+    assert stored_idea.processing_status == IdeaProcessingStatus.COMPLETED.value
     assert stored_idea.embedding_model == "fake-embedding-model"
     assert stored_idea.embedding_dimensions == 1024
     assert stored_idea.embedding_input_version == "embedding-input-v1"

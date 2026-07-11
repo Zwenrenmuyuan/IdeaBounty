@@ -125,6 +125,14 @@ class DuplicateVerdict(StrEnum):
     NOVEL = "novel"
 
 
+class DuplicateMethod(StrEnum):
+    """查重结论采用的判定路径。"""
+
+    EXACT_HASH = "exact_hash"
+    NO_CANDIDATES = "no_candidates"
+    LLM_CANDIDATES = "llm_candidates"
+
+
 class ManipulationSignal(StrEnum):
     """用户试图影响模型判断的内部审计信号。"""
 

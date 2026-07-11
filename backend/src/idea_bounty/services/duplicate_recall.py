@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from idea_bounty.embedding import EXPECTED_EMBEDDING_DIMENSIONS
-from idea_bounty.models import Idea, IdeaProcessingStatus, InputDecision
+from idea_bounty.models import DuplicateVerdict, Idea, IdeaProcessingStatus, InputDecision
 from idea_bounty.schemas.ai import NormalizedContent
 from idea_bounty.services.idea import normalize_content_for_hash
 
@@ -70,6 +70,9 @@ def _find_exact_match(db_session: Session, idea: Idea) -> int | None:
             Idea.internal_id < idea.internal_id,
             Idea.processing_status == IdeaProcessingStatus.COMPLETED.value,
             Idea.input_decision == InputDecision.ACCEPT.value,
+            Idea.effective_duplicate_verdict.in_(
+                [DuplicateVerdict.NOVEL.value, DuplicateVerdict.RELATED.value]
+            ),
             Idea.content_hash == idea.content_hash,
         )
         .order_by(Idea.internal_id.asc())
@@ -103,6 +106,9 @@ def _find_semantic_candidates(
             Idea.internal_id < idea.internal_id,
             Idea.processing_status == IdeaProcessingStatus.COMPLETED.value,
             Idea.input_decision == InputDecision.ACCEPT.value,
+            Idea.effective_duplicate_verdict.in_(
+                [DuplicateVerdict.NOVEL.value, DuplicateVerdict.RELATED.value]
+            ),
             Idea.embedding.is_not(None),
             Idea.embedding_model == idea.embedding_model,
             Idea.embedding_dimensions == idea.embedding_dimensions,

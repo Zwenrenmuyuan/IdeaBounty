@@ -5,10 +5,11 @@ from uuid import UUID
 from sqlalchemy import func, update
 from sqlalchemy.orm import Session
 
-from idea_bounty.ai import EvaluationProvider
+from idea_bounty.ai import DuplicateProvider, EvaluationProvider
 from idea_bounty.embedding import EmbeddingProvider
 from idea_bounty.models import FailureStage, Idea, IdeaProcessingStatus
-from idea_bounty.services.embedding import run_claimed_embedding
+from idea_bounty.services.duplicate import run_claimed_duplicate
+from idea_bounty.services.embedding import run_claimed_embedding_stage
 from idea_bounty.services.evaluation import (
     process_pending_evaluation_stage,
     run_claimed_evaluation,
@@ -39,6 +40,7 @@ def process_idea_pipeline(
     idea: Idea,
     evaluation_provider: EvaluationProvider,
     embedding_provider: EmbeddingProvider,
+    duplicate_provider: DuplicateProvider,
 ) -> Idea:
     """处理当前请求亲自认领的评估和 Embedding 阶段。"""
 
@@ -49,7 +51,14 @@ def process_idea_pipeline(
     )
     if not evaluation_result.continue_to_embedding:
         return evaluation_result.idea
-    return run_claimed_embedding(db_session, evaluation_result.idea, embedding_provider)
+    embedding_result = run_claimed_embedding_stage(
+        db_session,
+        evaluation_result.idea,
+        embedding_provider,
+    )
+    if not embedding_result.continue_to_duplicate:
+        return embedding_result.idea
+    return run_claimed_duplicate(db_session, embedding_result.idea, duplicate_provider)
 
 
 def retry_failed_pipeline(
@@ -58,6 +67,7 @@ def retry_failed_pipeline(
     public_id: UUID,
     evaluation_provider: EvaluationProvider,
     embedding_provider: EmbeddingProvider,
+    duplicate_provider: DuplicateProvider,
 ) -> Idea | None:
     """按服务端保存的失败阶段重新发起一轮处理。"""
 
@@ -67,17 +77,18 @@ def retry_failed_pipeline(
     if idea.processing_status != IdeaProcessingStatus.FAILED.value or idea.failure_stage not in {
         FailureStage.EVALUATING.value,
         FailureStage.EMBEDDING.value,
+        FailureStage.CHECKING_DUPLICATE.value,
     }:
         raise IdeaRetryStateError
     if idea.retry_count >= MAX_USER_RETRIES:
         raise IdeaRetryLimitError
 
     failure_stage = FailureStage(idea.failure_stage)
-    target_status = (
-        IdeaProcessingStatus.EVALUATING
-        if failure_stage is FailureStage.EVALUATING
-        else IdeaProcessingStatus.EMBEDDING
-    )
+    target_status = {
+        FailureStage.EVALUATING: IdeaProcessingStatus.EVALUATING,
+        FailureStage.EMBEDDING: IdeaProcessingStatus.EMBEDDING,
+        FailureStage.CHECKING_DUPLICATE: IdeaProcessingStatus.CHECKING_DUPLICATE,
+    }[failure_stage]
     claimed_id = db_session.scalar(
         update(Idea)
         .where(
@@ -104,10 +115,22 @@ def retry_failed_pipeline(
         raise IdeaRetryStateError
 
     _refresh_idea(db_session, idea)
+    if failure_stage is FailureStage.CHECKING_DUPLICATE:
+        return run_claimed_duplicate(db_session, idea, duplicate_provider)
     if failure_stage is FailureStage.EMBEDDING:
-        return run_claimed_embedding(db_session, idea, embedding_provider)
+        embedding_result = run_claimed_embedding_stage(db_session, idea, embedding_provider)
+        if not embedding_result.continue_to_duplicate:
+            return embedding_result.idea
+        return run_claimed_duplicate(db_session, embedding_result.idea, duplicate_provider)
 
     evaluation_result = run_claimed_evaluation(db_session, idea, evaluation_provider)
     if not evaluation_result.continue_to_embedding:
         return evaluation_result.idea
-    return run_claimed_embedding(db_session, evaluation_result.idea, embedding_provider)
+    embedding_result = run_claimed_embedding_stage(
+        db_session,
+        evaluation_result.idea,
+        embedding_provider,
+    )
+    if not embedding_result.continue_to_duplicate:
+        return embedding_result.idea
+    return run_claimed_duplicate(db_session, embedding_result.idea, duplicate_provider)

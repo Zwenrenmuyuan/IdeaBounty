@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from idea_bounty.models import Idea, IdeaProcessingStatus
+from idea_bounty.models import Idea, IdeaProcessingStatus, InputDecision
 
 SUBMISSION_KEY_CONSTRAINT = "uq_ideas_user_id_submission_key"
 
@@ -132,5 +132,26 @@ def get_user_idea(db_session: Session, user_id: int, public_id: UUID) -> Idea | 
         select(Idea).where(
             Idea.user_id == user_id,
             Idea.public_id == public_id,
+        )
+    )
+
+
+def get_matched_public_id(db_session: Session, idea: Idea) -> UUID | None:
+    """把内部匹配关系转换为用户可见的随机公开 ID。"""
+
+    if idea.matched_idea_id is None:
+        return None
+    return db_session.scalar(select(Idea.public_id).where(Idea.internal_id == idea.matched_idea_id))
+
+
+def get_public_idea(db_session: Session, public_id: UUID) -> Idea | None:
+    """只返回已经完成且允许公开白名单摘要的点子。"""
+
+    return db_session.scalar(
+        select(Idea).where(
+            Idea.public_id == public_id,
+            Idea.processing_status == IdeaProcessingStatus.COMPLETED.value,
+            Idea.input_decision == InputDecision.ACCEPT.value,
+            Idea.duplicate_method.is_not(None),
         )
     )

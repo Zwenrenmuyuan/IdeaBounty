@@ -100,6 +100,83 @@ class Idea(Base):
             "processing_status <> 'checking_duplicate' OR embedding IS NOT NULL",
             name="checking_duplicate_requires_embedding",
         ),
+        CheckConstraint(
+            "duplicate_method IS NULL OR duplicate_method IN "
+            "('exact_hash', 'no_candidates', 'llm_candidates')",
+            name="duplicate_method_allowed",
+        ),
+        CheckConstraint(
+            "ai_duplicate_verdict IS NULL OR ai_duplicate_verdict IN "
+            "('duplicate', 'related', 'novel')",
+            name="ai_duplicate_verdict_allowed",
+        ),
+        CheckConstraint(
+            "effective_duplicate_verdict IS NULL OR effective_duplicate_verdict IN "
+            "('duplicate', 'related', 'novel')",
+            name="effective_duplicate_verdict_allowed",
+        ),
+        CheckConstraint(
+            "duplicate_confidence IS NULL OR duplicate_confidence IN ('high', 'medium', 'low')",
+            name="duplicate_confidence_allowed",
+        ),
+        CheckConstraint(
+            "((duplicate_method IS NULL AND ai_duplicate_verdict IS NULL "
+            "AND effective_duplicate_verdict IS NULL AND duplicate_confidence IS NULL "
+            "AND matched_idea_id IS NULL AND duplicate_reason IS NULL "
+            "AND duplicate_comparison IS NULL AND duplicate_model IS NULL "
+            "AND duplicate_prompt_version IS NULL AND duplicate_schema_version IS NULL) OR "
+            "(duplicate_method IS NOT NULL AND ai_duplicate_verdict IS NOT NULL "
+            "AND effective_duplicate_verdict IS NOT NULL AND duplicate_confidence IS NOT NULL "
+            "AND duplicate_reason IS NOT NULL))",
+            name="duplicate_result_complete",
+        ),
+        CheckConstraint(
+            "(duplicate_method IS NOT NULL) = "
+            "(processing_status = 'completed' AND input_decision = 'accept')",
+            name="duplicate_result_matches_completed_accept",
+        ),
+        CheckConstraint(
+            "((effective_duplicate_verdict IN ('duplicate', 'related') "
+            "AND matched_idea_id IS NOT NULL) OR "
+            "(effective_duplicate_verdict = 'novel' AND matched_idea_id IS NULL) OR "
+            "effective_duplicate_verdict IS NULL)",
+            name="duplicate_match_required",
+        ),
+        CheckConstraint(
+            "matched_idea_id IS NULL OR matched_idea_id < internal_id",
+            name="matched_idea_is_older",
+        ),
+        CheckConstraint(
+            "effective_duplicate_verdict IS NULL "
+            "OR effective_duplicate_verdict = ai_duplicate_verdict "
+            "OR (ai_duplicate_verdict = 'duplicate' "
+            "AND duplicate_confidence IN ('medium', 'low') "
+            "AND effective_duplicate_verdict = 'related')",
+            name="effective_duplicate_verdict_policy",
+        ),
+        CheckConstraint(
+            "duplicate_method <> 'exact_hash' OR "
+            "(ai_duplicate_verdict = 'duplicate' "
+            "AND effective_duplicate_verdict = 'duplicate' "
+            "AND duplicate_confidence = 'high' AND matched_idea_id IS NOT NULL "
+            "AND duplicate_comparison IS NULL AND duplicate_model IS NULL "
+            "AND duplicate_prompt_version IS NULL AND duplicate_schema_version IS NULL)",
+            name="exact_hash_result_shape",
+        ),
+        CheckConstraint(
+            "duplicate_method <> 'no_candidates' OR "
+            "(ai_duplicate_verdict = 'novel' AND effective_duplicate_verdict = 'novel' "
+            "AND duplicate_confidence = 'high' AND matched_idea_id IS NULL "
+            "AND duplicate_comparison IS NULL AND duplicate_model IS NULL "
+            "AND duplicate_prompt_version IS NULL AND duplicate_schema_version IS NULL)",
+            name="no_candidates_result_shape",
+        ),
+        CheckConstraint(
+            "duplicate_method <> 'llm_candidates' OR "
+            "(duplicate_comparison IS NOT NULL AND duplicate_model IS NOT NULL "
+            "AND duplicate_prompt_version IS NOT NULL AND duplicate_schema_version IS NOT NULL)",
+            name="llm_duplicate_result_shape",
+        ),
         UniqueConstraint(
             "user_id",
             "submission_key",
@@ -112,6 +189,7 @@ class Idea(Base):
             "created_at",
         ),
         Index("ix_ideas_content_hash", "content_hash"),
+        Index("ix_ideas_matched_idea_id", "matched_idea_id"),
     )
 
     internal_id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
@@ -165,6 +243,23 @@ class Idea(Base):
     embedding_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     embedding_dimensions: Mapped[int | None] = mapped_column(nullable=True)
     embedding_input_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    duplicate_method: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    ai_duplicate_verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    effective_duplicate_verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    duplicate_confidence: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    matched_idea_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("ideas.internal_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    duplicate_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duplicate_comparison: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True),
+        nullable=True,
+    )
+    duplicate_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    duplicate_prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    duplicate_schema_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     failure_stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
     failure_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

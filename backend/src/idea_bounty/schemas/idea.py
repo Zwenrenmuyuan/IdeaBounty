@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+import re
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from pydantic import UUID4, BaseModel, ConfigDict, Field, field_validator
 
-from idea_bounty.models import IdeaProcessingStatus, InputDecision
+from idea_bounty.models import DuplicateVerdict, IdeaProcessingStatus, InputDecision
 from idea_bounty.schemas.ai import EvaluationScores, NormalizedContent
+from idea_bounty.schemas.duplicate import DuplicateComparisonSnapshot
 
 if TYPE_CHECKING:
     from idea_bounty.models import Idea
@@ -68,15 +70,31 @@ class IdeaSummaryResponse(BaseModel):
         )
 
 
+class IdeaDuplicateResultResponse(BaseModel):
+    """个人详情中允许展示的查重结论。"""
+
+    verdict: DuplicateVerdict
+    matched_public_id: UUID4 | None
+    matched_idea_url: str | None
+    same_aspects: list[str]
+    different_aspects: list[str]
+    reason: str
+
+
 class IdeaResponse(IdeaSummaryResponse):
     """创建和个人详情接口返回的完整评估结果。"""
 
     decision_reason: str | None
     clarification_question: str | None
     evaluation: EvaluationScores | None
+    duplicate_result: IdeaDuplicateResultResponse | None
 
     @classmethod
-    def from_idea(cls, idea: Idea) -> IdeaResponse:
+    def from_idea(
+        cls,
+        idea: Idea,
+        matched_public_id: UUID4 | None = None,
+    ) -> IdeaResponse:
         """从 ORM 快照投影用户可见字段并重新校验 JSONB。"""
 
         summary = IdeaSummaryResponse.from_idea(idea)
@@ -91,6 +109,7 @@ class IdeaResponse(IdeaSummaryResponse):
                 else None
             ),
             evaluation=evaluation,
+            duplicate_result=_build_duplicate_result(idea, matched_public_id),
         )
 
 
@@ -101,6 +120,78 @@ class IdeaListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class PublicIdeaSummary(BaseModel):
+    """允许登录用户跨用户查看的脱敏点子摘要。"""
+
+    public_id: UUID4
+    generated_title: str | None
+    target_audience: str | None
+    pain_point: str | None
+    context: str | None
+    solution_present: bool
+    solution_outline: str | None
+    created_date: date
+
+    @classmethod
+    def from_idea(cls, idea: Idea) -> PublicIdeaSummary:
+        """从正式规范化快照投影白名单字段并逐项脱敏。"""
+
+        content = _parse_normalized_content(idea)
+        if content is None:
+            raise ValueError("公开摘要缺少规范化内容")
+        return cls(
+            public_id=idea.public_id,
+            generated_title=_safe_public_text(content.generated_title),
+            target_audience=_safe_public_text(content.target_audience.value),
+            pain_point=_safe_public_text(content.pain_point.value),
+            context=_safe_public_text(content.context.value),
+            solution_present=content.solution_present,
+            solution_outline=_safe_public_text(content.solution_mechanism.value),
+            created_date=idea.created_at.date(),
+        )
+
+
+SENSITIVE_PATTERNS = (
+    re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
+    re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"),
+    re.compile(r"(?<!\d)\d{17}[0-9Xx](?!\d)"),
+    re.compile(r"(?:省|自治区|市|区|县).{0,24}(?:路|街|道|巷|号|栋|室)"),
+    re.compile(r"\d{1,6}(?:号|栋|单元|室)"),
+)
+
+
+def _safe_public_text(value: str | None) -> str | None:
+    if value is None or any(pattern.search(value) for pattern in SENSITIVE_PATTERNS):
+        return None
+    return value
+
+
+def _build_duplicate_result(
+    idea: Idea,
+    matched_public_id: UUID4 | None,
+) -> IdeaDuplicateResultResponse | None:
+    if idea.effective_duplicate_verdict is None or idea.duplicate_reason is None:
+        return None
+    comparison = _parse_duplicate_comparison(idea)
+    matched_url = (
+        f"/api/ideas/{matched_public_id}/summary" if matched_public_id is not None else None
+    )
+    return IdeaDuplicateResultResponse(
+        verdict=DuplicateVerdict(idea.effective_duplicate_verdict),
+        matched_public_id=matched_public_id,
+        matched_idea_url=matched_url,
+        same_aspects=(
+            [aspect.value for aspect in comparison.same_aspects] if comparison is not None else []
+        ),
+        different_aspects=(
+            [aspect.value for aspect in comparison.different_aspects]
+            if comparison is not None
+            else []
+        ),
+        reason=idea.duplicate_reason,
+    )
 
 
 def _parse_normalized_content(idea: Idea) -> NormalizedContent | None:
@@ -116,4 +207,12 @@ def _parse_evaluation_scores(idea: Idea) -> EvaluationScores | None:
         return None
     return EvaluationScores.model_validate_json(
         json.dumps(idea.dimension_scores, ensure_ascii=False)
+    )
+
+
+def _parse_duplicate_comparison(idea: Idea) -> DuplicateComparisonSnapshot | None:
+    if idea.duplicate_comparison is None:
+        return None
+    return DuplicateComparisonSnapshot.model_validate_json(
+        json.dumps(idea.duplicate_comparison, ensure_ascii=False)
     )

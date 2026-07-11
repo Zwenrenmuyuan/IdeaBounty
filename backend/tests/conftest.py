@@ -13,11 +13,16 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from alembic import command
-from idea_bounty.api.dependencies import get_embedding_provider, get_evaluation_provider
+from idea_bounty.api.dependencies import (
+    get_duplicate_provider,
+    get_embedding_provider,
+    get_evaluation_provider,
+)
 from idea_bounty.config import get_settings
 from idea_bounty.db import get_db_session
 from idea_bounty.main import create_app
 from tests.ai_fakes import FakeEvaluationProvider
+from tests.duplicate_fakes import FakeDuplicateProvider
 from tests.embedding_fakes import FakeEmbeddingProvider
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -99,11 +104,19 @@ def embedding_provider() -> FakeEmbeddingProvider:
 
 
 @pytest.fixture
+def duplicate_provider() -> FakeDuplicateProvider:
+    """默认不应在无候选投稿中调用的查重替身。"""
+
+    return FakeDuplicateProvider()
+
+
+@pytest.fixture
 def app(
     test_engine: Engine,
     clean_database: None,
     evaluation_provider: FakeEvaluationProvider,
     embedding_provider: FakeEmbeddingProvider,
+    duplicate_provider: FakeDuplicateProvider,
 ) -> FastAPI:
     """创建将数据库依赖指向测试库的应用。"""
 
@@ -120,6 +133,7 @@ def app(
     application.dependency_overrides[get_db_session] = override_get_db_session
     application.dependency_overrides[get_evaluation_provider] = lambda: evaluation_provider
     application.dependency_overrides[get_embedding_provider] = lambda: embedding_provider
+    application.dependency_overrides[get_duplicate_provider] = lambda: duplicate_provider
     return application
 
 

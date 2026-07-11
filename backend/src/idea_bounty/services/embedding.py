@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 
 from pydantic import ValidationError
 from sqlalchemy import func, update
@@ -15,6 +16,14 @@ from idea_bounty.embedding import (
 )
 from idea_bounty.models import FailureCode, FailureStage, Idea, IdeaProcessingStatus
 from idea_bounty.schemas.ai import NormalizedContent
+
+
+@dataclass(frozen=True, slots=True)
+class EmbeddingStageResult:
+    """Embedding 结果及当前调用是否拥有继续查重的执行权。"""
+
+    idea: Idea
+    continue_to_duplicate: bool
 
 
 def _refresh_idea(db_session: Session, idea: Idea) -> Idea:
@@ -78,10 +87,10 @@ def _store_embedding_success(
     db_session: Session,
     idea: Idea,
     result: EmbeddingProviderResult,
-) -> Idea:
+) -> EmbeddingStageResult:
     """原子保存向量快照并推进到待查重状态。"""
 
-    db_session.execute(
+    claimed_id = db_session.scalar(
         update(Idea)
         .where(
             Idea.internal_id == idea.internal_id,
@@ -99,9 +108,13 @@ def _store_embedding_success(
             completed_at=None,
             updated_at=func.now(),
         )
+        .returning(Idea.internal_id)
     )
     db_session.commit()
-    return _refresh_idea(db_session, idea)
+    return EmbeddingStageResult(
+        _refresh_idea(db_session, idea),
+        continue_to_duplicate=claimed_id is not None,
+    )
 
 
 def run_claimed_embedding(
@@ -116,4 +129,22 @@ def run_claimed_embedding(
         result = provider.embed(text)
     except EmbeddingProviderError as exc:
         return _store_embedding_failure(db_session, idea, exc)
+    return _store_embedding_success(db_session, idea, result).idea
+
+
+def run_claimed_embedding_stage(
+    db_session: Session,
+    idea: Idea,
+    provider: EmbeddingProvider,
+) -> EmbeddingStageResult:
+    """执行 Embedding，并明确当前调用能否继续下游查重。"""
+
+    try:
+        text = _build_idea_embedding_text(idea)
+        result = provider.embed(text)
+    except EmbeddingProviderError as exc:
+        return EmbeddingStageResult(
+            _store_embedding_failure(db_session, idea, exc),
+            continue_to_duplicate=False,
+        )
     return _store_embedding_success(db_session, idea, result)

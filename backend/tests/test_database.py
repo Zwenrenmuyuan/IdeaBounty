@@ -70,15 +70,27 @@ def test_migration_creates_expected_schema(test_engine: Engine) -> None:
     assert {constraint["name"] for constraint in inspector.get_check_constraints("ideas")} == {
         "ck_ideas_completed_at_matches_status",
         "ck_ideas_checking_duplicate_requires_embedding",
+        "ck_ideas_ai_duplicate_verdict_allowed",
+        "ck_ideas_duplicate_confidence_allowed",
+        "ck_ideas_duplicate_match_required",
+        "ck_ideas_duplicate_method_allowed",
+        "ck_ideas_duplicate_result_complete",
+        "ck_ideas_duplicate_result_matches_completed_accept",
         "ck_ideas_embedding_dimensions_fixed",
         "ck_ideas_embedding_fields_together",
         "ck_ideas_embedding_requires_accept",
         "ck_ideas_evaluation_result_complete",
+        "ck_ideas_effective_duplicate_verdict_allowed",
+        "ck_ideas_effective_duplicate_verdict_policy",
+        "ck_ideas_exact_hash_result_shape",
         "ck_ideas_failure_code_allowed",
         "ck_ideas_failure_fields_together",
         "ck_ideas_failure_matches_status",
         "ck_ideas_failure_stage_allowed",
         "ck_ideas_input_decision_allowed",
+        "ck_ideas_llm_duplicate_result_shape",
+        "ck_ideas_matched_idea_is_older",
+        "ck_ideas_no_candidates_result_shape",
         "ck_ideas_processing_status_allowed",
         "ck_ideas_retry_count_range",
     }
@@ -95,6 +107,16 @@ def test_migration_creates_expected_schema(test_engine: Engine) -> None:
         "embedding_model",
         "embedding_dimensions",
         "embedding_input_version",
+        "duplicate_method",
+        "ai_duplicate_verdict",
+        "effective_duplicate_verdict",
+        "duplicate_confidence",
+        "matched_idea_id",
+        "duplicate_reason",
+        "duplicate_comparison",
+        "duplicate_model",
+        "duplicate_prompt_version",
+        "duplicate_schema_version",
         "failure_stage",
         "failure_code",
         "completed_at",
@@ -110,12 +132,18 @@ def test_migration_creates_expected_schema(test_engine: Engine) -> None:
         )
     assert {index["name"] for index in inspector.get_indexes("ideas") if not index["unique"]} == {
         "ix_ideas_content_hash",
+        "ix_ideas_matched_idea_id",
         "ix_ideas_processing_status_created_at",
         "ix_ideas_user_id_created_at",
     }
-    idea_foreign_key = inspector.get_foreign_keys("ideas")[0]
+    idea_foreign_keys = {
+        foreign_key["name"]: foreign_key for foreign_key in inspector.get_foreign_keys("ideas")
+    }
+    idea_foreign_key = idea_foreign_keys["fk_ideas_user_id_users"]
     assert idea_foreign_key["name"] == "fk_ideas_user_id_users"
     assert idea_foreign_key["options"]["ondelete"] == "CASCADE"
+    matched_foreign_key = idea_foreign_keys["fk_ideas_matched_idea_id_ideas"]
+    assert matched_foreign_key["options"]["ondelete"] == "RESTRICT"
 
 
 def test_user_and_session_can_be_persisted(db_session: Session) -> None:

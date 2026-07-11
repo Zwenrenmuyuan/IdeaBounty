@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import UUID4
 from sqlalchemy.orm import Session
 
-from idea_bounty.ai import EvaluationProvider
+from idea_bounty.ai import DuplicateProvider, EvaluationProvider
 from idea_bounty.api.dependencies import (
     get_current_user,
+    get_duplicate_provider,
     get_embedding_provider,
     get_evaluation_provider,
 )
@@ -22,6 +23,7 @@ from idea_bounty.schemas import (
 from idea_bounty.services.idea import (
     SubmissionKeyConflictError,
     create_or_get_idea,
+    get_matched_public_id,
     get_user_idea,
     list_user_ideas,
 )
@@ -55,6 +57,7 @@ def create_idea(
     db_session: Annotated[Session, Depends(get_db_session)],
     evaluation_provider: Annotated[EvaluationProvider, Depends(get_evaluation_provider)],
     embedding_provider: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
+    duplicate_provider: Annotated[DuplicateProvider, Depends(get_duplicate_provider)],
 ) -> IdeaResponse:
     """为当前用户创建或返回一条幂等投稿。"""
 
@@ -76,8 +79,9 @@ def create_idea(
         result.idea,
         evaluation_provider,
         embedding_provider,
+        duplicate_provider,
     )
-    return IdeaResponse.from_idea(idea)
+    return IdeaResponse.from_idea(idea, get_matched_public_id(db_session, idea))
 
 
 @router.get("", response_model=IdeaListResponse, summary="查看个人投稿列表")
@@ -113,6 +117,7 @@ def retry_idea_processing(
     db_session: Annotated[Session, Depends(get_db_session)],
     evaluation_provider: Annotated[EvaluationProvider, Depends(get_evaluation_provider)],
     embedding_provider: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
+    duplicate_provider: Annotated[DuplicateProvider, Depends(get_duplicate_provider)],
 ) -> IdeaResponse:
     """只允许点子所有者按服务端记录的失败阶段重试。"""
 
@@ -123,6 +128,7 @@ def retry_idea_processing(
             public_id,
             evaluation_provider,
             embedding_provider,
+            duplicate_provider,
         )
     except IdeaRetryLimitError as exc:
         raise HTTPException(
@@ -139,7 +145,7 @@ def retry_idea_processing(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="点子不存在",
         )
-    return IdeaResponse.from_idea(idea)
+    return IdeaResponse.from_idea(idea, get_matched_public_id(db_session, idea))
 
 
 @router.get("/{public_id}", response_model=IdeaResponse, summary="查看个人投稿详情")
@@ -156,4 +162,4 @@ def get_idea(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="点子不存在",
         )
-    return IdeaResponse.from_idea(idea)
+    return IdeaResponse.from_idea(idea, get_matched_public_id(db_session, idea))
