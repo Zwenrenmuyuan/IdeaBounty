@@ -23,6 +23,15 @@ PostgreSQL 容器首次启动时会创建 `idea_bounty` 开发数据库和独立
 uv run python scripts/probe_ai_provider.py --show-output
 ```
 
+Embedding 候选服务使用独立的 `EMBEDDING_*` 配置。单次探测会批量检查向量结构和固定中文语义排序；比较稳定性时最多运行三次，均不会自动重试：
+
+```bash
+uv run python scripts/probe_embedding_provider.py
+uv run python scripts/probe_embedding_provider.py --runs 3
+```
+
+模型选定前可以不设置 `EMBEDDING_DIMENSIONS`，脚本会报告实际维度；确定模型后再填写该值进行一致性校验。
+
 ## 启动 API
 
 ```bash
@@ -45,5 +54,5 @@ cd backend
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy src tests scripts/probe_ai_provider.py
+uv run mypy src tests scripts/probe_ai_provider.py scripts/probe_embedding_provider.py
 ```
