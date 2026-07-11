@@ -13,3 +13,14 @@ class UserStatus(StrEnum):
 
     ACTIVE = "active"
     DISABLED = "disabled"
+
+
+class IdeaProcessingStatus(StrEnum):
+    """点子处理流水线当前所处的阶段。"""
+
+    PENDING = "pending"
+    EVALUATING = "evaluating"
+    EMBEDDING = "embedding"
+    CHECKING_DUPLICATE = "checking_duplicate"
+    COMPLETED = "completed"
+    FAILED = "failed"

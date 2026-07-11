@@ -10,6 +10,7 @@ from idea_bounty.db.base import Base
 from idea_bounty.models.enums import UserRole, UserStatus
 
 if TYPE_CHECKING:
+    from idea_bounty.models.idea import Idea
     from idea_bounty.models.user_session import UserSession
 
 
@@ -48,4 +49,9 @@ class User(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         uselist=False,
+    )
+    ideas: Mapped[list[Idea]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
