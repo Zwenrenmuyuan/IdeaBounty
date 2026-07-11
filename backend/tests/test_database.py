@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -8,7 +9,17 @@ from sqlalchemy import Engine, delete, inspect, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from idea_bounty.models import Idea, IdeaProcessingStatus, User, UserRole, UserSession, UserStatus
+from idea_bounty.models import (
+    Idea,
+    IdeaProcessingStatus,
+    InputDecision,
+    User,
+    UserRole,
+    UserSession,
+    UserStatus,
+)
+from idea_bounty.schemas.ai import EvaluationScores, NormalizedContent
+from tests.ai_fakes import make_evaluation_output
 
 
 def _make_user(username: str = "alice") -> User:
@@ -57,9 +68,29 @@ def test_migration_creates_expected_schema(test_engine: Engine) -> None:
         "uq_ideas_user_id_submission_key",
     }
     assert {constraint["name"] for constraint in inspector.get_check_constraints("ideas")} == {
+        "ck_ideas_completed_at_matches_status",
+        "ck_ideas_evaluation_result_complete",
+        "ck_ideas_failure_code_allowed",
+        "ck_ideas_failure_fields_together",
+        "ck_ideas_failure_matches_status",
+        "ck_ideas_failure_stage_allowed",
+        "ck_ideas_input_decision_allowed",
         "ck_ideas_processing_status_allowed",
         "ck_ideas_retry_count_range",
     }
+    idea_columns = {column["name"] for column in inspector.get_columns("ideas")}
+    assert {
+        "input_decision",
+        "decision_reason",
+        "normalized_content",
+        "dimension_scores",
+        "evaluation_model",
+        "evaluation_prompt_version",
+        "evaluation_schema_version",
+        "failure_stage",
+        "failure_code",
+        "completed_at",
+    } <= idea_columns
     assert {index["name"] for index in inspector.get_indexes("ideas") if not index["unique"]} == {
         "ix_ideas_content_hash",
         "ix_ideas_processing_status_created_at",
@@ -235,3 +266,75 @@ def test_deleting_user_cascades_to_ideas(db_session: Session) -> None:
     db_session.commit()
 
     assert db_session.scalar(select(Idea)) is None
+
+
+def test_valid_ai_evaluation_can_be_persisted_and_revalidated(db_session: Session) -> None:
+    user = _make_user()
+    idea = _make_idea(user)
+    output = make_evaluation_output()
+    idea.processing_status = IdeaProcessingStatus.EMBEDDING.value
+    idea.input_decision = InputDecision.ACCEPT.value
+    idea.decision_reason = output.decision_reason
+    idea.normalized_content = output.normalized_content().model_dump(mode="json")
+    assert output.evaluation is not None
+    idea.dimension_scores = output.evaluation.model_dump(mode="json")
+    idea.evaluation_model = "fake-model"
+    idea.evaluation_prompt_version = "evaluation-v1"
+    idea.evaluation_schema_version = "evaluation-v1"
+    db_session.add_all([user, idea])
+    db_session.commit()
+
+    stored_idea = db_session.scalar(select(Idea))
+
+    assert stored_idea is not None
+    assert NormalizedContent.model_validate_json(json.dumps(stored_idea.normalized_content))
+    assert EvaluationScores.model_validate_json(json.dumps(stored_idea.dimension_scores))
+
+
+@pytest.mark.parametrize(
+    "invalid_state",
+    [
+        "invalid_decision",
+        "failed_without_code",
+        "failure_on_pending",
+        "accept_without_scores",
+        "clarify_with_scores",
+    ],
+)
+def test_database_rejects_incomplete_ai_states(
+    db_session: Session,
+    invalid_state: str,
+) -> None:
+    user = _make_user()
+    idea = _make_idea(user)
+    output = make_evaluation_output()
+
+    if invalid_state == "invalid_decision":
+        idea.input_decision = "maybe"
+    elif invalid_state == "failed_without_code":
+        idea.processing_status = IdeaProcessingStatus.FAILED.value
+    elif invalid_state == "failure_on_pending":
+        idea.failure_stage = "evaluating"
+        idea.failure_code = "provider_timeout"
+    else:
+        idea.processing_status = IdeaProcessingStatus.EMBEDDING.value
+        idea.input_decision = (
+            InputDecision.ACCEPT.value
+            if invalid_state == "accept_without_scores"
+            else InputDecision.CLARIFY.value
+        )
+        idea.decision_reason = output.decision_reason
+        idea.normalized_content = output.normalized_content().model_dump(mode="json")
+        idea.dimension_scores = (
+            None
+            if invalid_state == "accept_without_scores"
+            else output.evaluation.model_dump(mode="json")  # type: ignore[union-attr]
+        )
+        idea.evaluation_model = "fake-model"
+        idea.evaluation_prompt_version = "evaluation-v1"
+        idea.evaluation_schema_version = "evaluation-v1"
+    db_session.add_all([user, idea])
+
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()

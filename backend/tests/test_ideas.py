@@ -9,7 +9,8 @@ from httpx2 import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from idea_bounty.models import Idea
+from idea_bounty.models import Idea, IdeaProcessingStatus, InputDecision
+from tests.ai_fakes import FakeEvaluationProvider
 
 PASSWORD = "correct horse battery staple"
 
@@ -53,14 +54,21 @@ def test_create_idea_preserves_raw_content_and_hides_internal_fields(
         "public_id",
         "submission_key",
         "raw_content",
+        "generated_title",
         "processing_status",
+        "input_decision",
         "retry_count",
         "created_at",
         "updated_at",
+        "decision_reason",
+        "clarification_question",
+        "evaluation",
     }
     assert response.json()["submission_key"] == str(submission_key)
     assert response.json()["raw_content"] == raw_content
-    assert response.json()["processing_status"] == "pending"
+    assert response.json()["processing_status"] == "embedding"
+    assert response.json()["input_decision"] == "accept"
+    assert response.json()["evaluation"]["demand_breadth"]["score"] == 3
     assert response.json()["retry_count"] == 0
     assert UUID(response.json()["public_id"]).version == 4
 
@@ -68,6 +76,8 @@ def test_create_idea_preserves_raw_content_and_hides_internal_fields(
     assert stored_idea is not None
     assert stored_idea.raw_content == raw_content
     assert len(stored_idea.content_hash) == 64
+    assert stored_idea.processing_status == IdeaProcessingStatus.EMBEDDING.value
+    assert stored_idea.input_decision == InputDecision.ACCEPT.value
 
 
 @pytest.mark.parametrize("length", [8, 2000])
@@ -147,6 +157,7 @@ def test_content_hash_normalizes_unicode_case_and_whitespace(
 def test_identical_request_returns_existing_idea(
     client: TestClient,
     db_session: Session,
+    evaluation_provider: FakeEvaluationProvider,
 ) -> None:
     _register(client, "alice")
     submission_key = uuid4()
@@ -159,6 +170,7 @@ def test_identical_request_returns_existing_idea(
     assert replay_response.status_code == 200
     assert replay_response.json()["public_id"] == first_response.json()["public_id"]
     assert db_session.scalar(select(func.count()).select_from(Idea)) == 1
+    assert evaluation_provider.call_count == 1
 
 
 def test_reused_submission_key_with_different_content_returns_conflict(
@@ -289,3 +301,4 @@ def test_idea_routes_are_documented(client: TestClient) -> None:
     assert {"200", "201", "409", "422"} <= set(create_responses)
     assert "get" in paths["/api/me/ideas"]
     assert "get" in paths["/api/me/ideas/{public_id}"]
+    assert "post" in paths["/api/me/ideas/{public_id}/retry"]

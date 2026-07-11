@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -18,6 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,6 +40,46 @@ class Idea(Base):
             name="processing_status_allowed",
         ),
         CheckConstraint("retry_count BETWEEN 0 AND 3", name="retry_count_range"),
+        CheckConstraint(
+            "input_decision IS NULL OR input_decision IN ('accept', 'clarify', 'reject')",
+            name="input_decision_allowed",
+        ),
+        CheckConstraint(
+            "failure_stage IS NULL OR failure_stage IN "
+            "('evaluating', 'embedding', 'checking_duplicate')",
+            name="failure_stage_allowed",
+        ),
+        CheckConstraint(
+            "failure_code IS NULL OR failure_code IN "
+            "('provider_config_error', 'provider_auth_error', 'json_mode_unsupported', "
+            "'provider_timeout', 'provider_rate_limited', 'invalid_ai_response', "
+            "'invalid_ai_output', 'provider_error')",
+            name="failure_code_allowed",
+        ),
+        CheckConstraint(
+            "(failure_stage IS NULL) = (failure_code IS NULL)",
+            name="failure_fields_together",
+        ),
+        CheckConstraint(
+            "(processing_status = 'failed') = (failure_stage IS NOT NULL)",
+            name="failure_matches_status",
+        ),
+        CheckConstraint(
+            "((input_decision IS NULL AND decision_reason IS NULL "
+            "AND normalized_content IS NULL AND dimension_scores IS NULL "
+            "AND evaluation_model IS NULL AND evaluation_prompt_version IS NULL "
+            "AND evaluation_schema_version IS NULL) OR "
+            "(input_decision IS NOT NULL AND decision_reason IS NOT NULL "
+            "AND normalized_content IS NOT NULL AND evaluation_model IS NOT NULL "
+            "AND evaluation_prompt_version IS NOT NULL AND evaluation_schema_version IS NOT NULL "
+            "AND ((input_decision = 'accept' AND dimension_scores IS NOT NULL) "
+            "OR (input_decision IN ('clarify', 'reject') AND dimension_scores IS NULL))))",
+            name="evaluation_result_complete",
+        ),
+        CheckConstraint(
+            "(processing_status = 'completed') = (completed_at IS NOT NULL)",
+            name="completed_at_matches_status",
+        ),
         UniqueConstraint(
             "user_id",
             "submission_key",
@@ -83,6 +124,22 @@ class Idea(Base):
         server_default="0",
         nullable=False,
     )
+    input_decision: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalized_content: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True),
+        nullable=True,
+    )
+    dimension_scores: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True),
+        nullable=True,
+    )
+    evaluation_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    evaluation_prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    evaluation_schema_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    failure_stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
