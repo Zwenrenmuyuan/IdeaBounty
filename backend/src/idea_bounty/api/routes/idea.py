@@ -5,8 +5,13 @@ from pydantic import UUID4
 from sqlalchemy.orm import Session
 
 from idea_bounty.ai import EvaluationProvider
-from idea_bounty.api.dependencies import get_current_user, get_evaluation_provider
+from idea_bounty.api.dependencies import (
+    get_current_user,
+    get_embedding_provider,
+    get_evaluation_provider,
+)
 from idea_bounty.db import get_db_session
+from idea_bounty.embedding import EmbeddingProvider
 from idea_bounty.models import User
 from idea_bounty.schemas import (
     IdeaCreateRequest,
@@ -14,17 +19,17 @@ from idea_bounty.schemas import (
     IdeaResponse,
     IdeaSummaryResponse,
 )
-from idea_bounty.services.evaluation import (
-    IdeaRetryLimitError,
-    IdeaRetryStateError,
-    process_pending_evaluation,
-    retry_failed_evaluation,
-)
 from idea_bounty.services.idea import (
     SubmissionKeyConflictError,
     create_or_get_idea,
     get_user_idea,
     list_user_ideas,
+)
+from idea_bounty.services.pipeline import (
+    IdeaRetryLimitError,
+    IdeaRetryStateError,
+    process_idea_pipeline,
+    retry_failed_pipeline,
 )
 
 router = APIRouter(prefix="/me/ideas", tags=["ideas"])
@@ -49,6 +54,7 @@ def create_idea(
     current_user: Annotated[User, Depends(get_current_user)],
     db_session: Annotated[Session, Depends(get_db_session)],
     evaluation_provider: Annotated[EvaluationProvider, Depends(get_evaluation_provider)],
+    embedding_provider: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
 ) -> IdeaResponse:
     """为当前用户创建或返回一条幂等投稿。"""
 
@@ -65,7 +71,12 @@ def create_idea(
             detail="submission_key 已被其他内容使用",
         ) from exc
     response.status_code = status.HTTP_201_CREATED if result.created else status.HTTP_200_OK
-    idea = process_pending_evaluation(db_session, result.idea, evaluation_provider)
+    idea = process_idea_pipeline(
+        db_session,
+        result.idea,
+        evaluation_provider,
+        embedding_provider,
+    )
     return IdeaResponse.from_idea(idea)
 
 
@@ -94,22 +105,24 @@ def list_ideas(
         status.HTTP_404_NOT_FOUND: {"description": "点子不存在"},
         status.HTTP_409_CONFLICT: {"description": "当前状态不可重试或达到重试上限"},
     },
-    summary="重试失败的点子评估",
+    summary="重试失败的点子处理",
 )
-def retry_idea_evaluation(
+def retry_idea_processing(
     public_id: UUID4,
     current_user: Annotated[User, Depends(get_current_user)],
     db_session: Annotated[Session, Depends(get_db_session)],
     evaluation_provider: Annotated[EvaluationProvider, Depends(get_evaluation_provider)],
+    embedding_provider: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
 ) -> IdeaResponse:
-    """只允许点子所有者重试 evaluating 阶段失败。"""
+    """只允许点子所有者按服务端记录的失败阶段重试。"""
 
     try:
-        idea = retry_failed_evaluation(
+        idea = retry_failed_pipeline(
             db_session,
             current_user.id,
             public_id,
             evaluation_provider,
+            embedding_provider,
         )
     except IdeaRetryLimitError as exc:
         raise HTTPException(

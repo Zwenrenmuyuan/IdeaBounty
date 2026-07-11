@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Backend code lives in `backend/src/idea_bounty/`: `api/` exposes FastAPI routes and dependencies, `services/` owns transactions, `schemas/` defines Pydantic boundaries, `models/` contains SQLAlchemy entities, `ai/` owns model configuration and provider calls, and `db/` owns persistence. Migrations are in `backend/alembic/`; tests are in `backend/tests/`. Root `compose.yaml` starts PostgreSQL using `infra/postgres/`. Treat `技术方案.md` as the approved architecture source. Frontend, Embedding deduplication, total scoring, and payout rules are not implemented yet.
+Backend code lives in `backend/src/idea_bounty/`: `api/` exposes FastAPI routes and dependencies, `services/` owns transactions, `schemas/` defines Pydantic boundaries, `models/` contains SQLAlchemy entities, `ai/` owns generation-model calls, `embedding/` owns vector configuration and provider calls, and `db/` owns persistence. Migrations are in `backend/alembic/`; tests are in `backend/tests/`. Root `compose.yaml` starts PostgreSQL using `infra/postgres/`. Treat `技术方案.md` as the approved architecture source. Production vector generation is implemented; candidate recall, LLM deduplication, total scoring, payout rules, and frontend are not.
 
 ## Build, Test, and Development Commands
 
@@ -26,7 +26,7 @@ Use Python 3.12, four-space indentation, and 100-character lines. Ruff controls 
 
 ## Testing Guidelines
 
-Use pytest and FastAPI TestClient. Name files `test_<feature>.py` and tests `test_<expected_behavior>`. Database fixtures reject names without `_test`; never target `idea_bounty`. Cover success, validation failure, constraints, migrations, and authorization. Authentication tests include Cookie expiry/revocation and disabled users. Idea tests include ownership isolation, `submission_key` replay, hash normalization, pagination, AI state transitions, retries, and cross-user `404`. Update cleanup fixtures when adding tables; all automated AI calls must use a fake provider or HTTP Mock.
+Use pytest and FastAPI TestClient. Name files `test_<feature>.py` and tests `test_<expected_behavior>`. Database fixtures reject names without `_test`; never target `idea_bounty`. Cover success, validation failure, constraints, migrations, and authorization. Authentication tests include Cookie expiry/revocation and disabled users. Idea tests include ownership isolation, `submission_key` replay, hash normalization, pagination, AI/Embedding state transitions, retries, and cross-user `404`. Update cleanup fixtures when adding tables; all automated generation-model and Embedding calls must use a fake provider or HTTP Mock.
 
 ## Database & Migration Rules
 

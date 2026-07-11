@@ -13,11 +13,12 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from alembic import command
-from idea_bounty.api.dependencies import get_evaluation_provider
+from idea_bounty.api.dependencies import get_embedding_provider, get_evaluation_provider
 from idea_bounty.config import get_settings
 from idea_bounty.db import get_db_session
 from idea_bounty.main import create_app
 from tests.ai_fakes import FakeEvaluationProvider
+from tests.embedding_fakes import FakeEmbeddingProvider
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TEST_DATABASE_URL = (
@@ -91,10 +92,18 @@ def evaluation_provider() -> FakeEvaluationProvider:
 
 
 @pytest.fixture
+def embedding_provider() -> FakeEmbeddingProvider:
+    """提供默认成功且不访问网络的 Embedding 替身。"""
+
+    return FakeEmbeddingProvider()
+
+
+@pytest.fixture
 def app(
     test_engine: Engine,
     clean_database: None,
     evaluation_provider: FakeEvaluationProvider,
+    embedding_provider: FakeEmbeddingProvider,
 ) -> FastAPI:
     """创建将数据库依赖指向测试库的应用。"""
 
@@ -110,6 +119,7 @@ def app(
 
     application.dependency_overrides[get_db_session] = override_get_db_session
     application.dependency_overrides[get_evaluation_provider] = lambda: evaluation_provider
+    application.dependency_overrides[get_embedding_provider] = lambda: embedding_provider
     return application
 
 

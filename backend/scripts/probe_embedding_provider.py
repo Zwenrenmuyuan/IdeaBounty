@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,8 +10,20 @@ from time import perf_counter
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
+from pydantic import Field, SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from idea_bounty.embedding import (
+    EmbeddingResponseError,
+    ParsedEmbeddings,
+    vector_norm,
+)
+from idea_bounty.embedding import (
+    build_embeddings_url as build_shared_embeddings_url,
+)
+from idea_bounty.embedding import (
+    parse_embedding_response as parse_shared_embedding_response,
+)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 EXACT_DUPLICATE_MIN_SIMILARITY = 0.999
@@ -116,51 +127,6 @@ class ProbeFailure(RuntimeError):
     """表示配置、HTTP 或向量结构探测失败。"""
 
 
-class EmbeddingItem(BaseModel):
-    """OpenAI 兼容响应中的单条向量。"""
-
-    model_config = ConfigDict(extra="ignore", strict=True)
-
-    index: int = Field(ge=0)
-    embedding: list[float]
-
-    @field_validator("embedding", mode="before")
-    @classmethod
-    def validate_embedding_values(cls, value: Any) -> list[float]:
-        if not isinstance(value, list):
-            raise ValueError("embedding 必须是数组")
-        normalized: list[float] = []
-        for item in value:
-            if isinstance(item, bool) or not isinstance(item, (int, float)):
-                raise ValueError("embedding 只能包含数值")
-            number = float(item)
-            if not math.isfinite(number):
-                raise ValueError("embedding 不能包含 NaN 或 Infinity")
-            normalized.append(number)
-        return normalized
-
-
-class EmbeddingResponse(BaseModel):
-    """探测脚本需要的 OpenAI 兼容响应字段。"""
-
-    model_config = ConfigDict(extra="ignore", strict=True)
-
-    data: list[EmbeddingItem]
-    model: str | None = None
-    usage: dict[str, Any] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ParsedEmbeddings:
-    """按输入索引恢复顺序后的已校验向量。"""
-
-    vectors: tuple[tuple[float, ...], ...]
-    dimension: int
-    norms: tuple[float, ...]
-    response_model: str | None
-    usage: dict[str, Any] | None
-
-
 @dataclass(frozen=True, slots=True)
 class ProbeRunResult:
     """一次成功接口调用的结构化结果。"""
@@ -195,12 +161,10 @@ class SemanticAnalysis:
 def build_embeddings_url(base_url: str) -> str:
     """把常规 Base URL 转换成 Embeddings 端点。"""
 
-    normalized = base_url.strip().rstrip("/")
-    if not normalized:
-        raise ProbeFailure("EMBEDDING_BASE_URL 不能为空")
-    if normalized.endswith("/embeddings"):
-        return normalized
-    return f"{normalized}/embeddings"
+    try:
+        return build_shared_embeddings_url(base_url)
+    except ValueError as exc:
+        raise ProbeFailure(str(exc)) from exc
 
 
 def classify_http_error(status_code: int) -> str:
@@ -217,12 +181,6 @@ def classify_http_error(status_code: int) -> str:
     if status_code >= 500:
         return "Embedding 服务内部错误"
     return "HTTP 请求失败"
-
-
-def vector_norm(vector: tuple[float, ...]) -> float:
-    """计算向量的欧几里得范数。"""
-
-    return math.sqrt(sum(value * value for value in vector))
 
 
 def cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> float:
@@ -247,47 +205,13 @@ def parse_embedding_response(
     """解析响应并严格校验索引、维度和向量数值。"""
 
     try:
-        parsed = EmbeddingResponse.model_validate_json(response_body)
-    except ValidationError as exc:
-        raise ProbeFailure(f"Embedding 响应结构无效：{exc.error_count()} 个校验错误") from exc
-
-    if len(parsed.data) != expected_count:
-        raise ProbeFailure(f"向量数量不符：期望 {expected_count}，实际 {len(parsed.data)}")
-
-    indexed: dict[int, tuple[float, ...]] = {}
-    for item in parsed.data:
-        if item.index in indexed:
-            raise ProbeFailure(f"响应包含重复 index：{item.index}")
-        if item.index >= expected_count:
-            raise ProbeFailure(f"响应 index 越界：{item.index}")
-        indexed[item.index] = tuple(item.embedding)
-
-    expected_indices = set(range(expected_count))
-    if set(indexed) != expected_indices:
-        missing = ", ".join(str(index) for index in sorted(expected_indices - set(indexed)))
-        raise ProbeFailure(f"响应缺少 index：{missing}")
-
-    vectors = tuple(indexed[index] for index in range(expected_count))
-    dimensions = {len(vector) for vector in vectors}
-    if len(dimensions) != 1:
-        raise ProbeFailure("响应中的向量维度不一致")
-    dimension = dimensions.pop()
-    if dimension == 0:
-        raise ProbeFailure("Embedding 向量不能为空")
-    if expected_dimensions is not None and dimension != expected_dimensions:
-        raise ProbeFailure(f"Embedding 维度不匹配：配置 {expected_dimensions}，实际 {dimension}")
-
-    norms = tuple(vector_norm(vector) for vector in vectors)
-    if any(norm == 0 for norm in norms):
-        raise ProbeFailure("Embedding 响应包含零向量")
-
-    return ParsedEmbeddings(
-        vectors=vectors,
-        dimension=dimension,
-        norms=norms,
-        response_model=parsed.model,
-        usage=parsed.usage,
-    )
+        return parse_shared_embedding_response(
+            response_body,
+            expected_count=expected_count,
+            expected_dimensions=expected_dimensions,
+        )
+    except EmbeddingResponseError as exc:
+        raise ProbeFailure(str(exc)) from exc
 
 
 def send_probe(

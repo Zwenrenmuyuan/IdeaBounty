@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
+from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import (
     CHAR,
     BigInteger,
@@ -53,7 +54,7 @@ class Idea(Base):
             "failure_code IS NULL OR failure_code IN "
             "('provider_config_error', 'provider_auth_error', 'json_mode_unsupported', "
             "'provider_timeout', 'provider_rate_limited', 'invalid_ai_response', "
-            "'invalid_ai_output', 'provider_error')",
+            "'invalid_ai_output', 'embedding_dimension_mismatch', 'provider_error')",
             name="failure_code_allowed",
         ),
         CheckConstraint(
@@ -79,6 +80,25 @@ class Idea(Base):
         CheckConstraint(
             "(processing_status = 'completed') = (completed_at IS NOT NULL)",
             name="completed_at_matches_status",
+        ),
+        CheckConstraint(
+            "((embedding IS NULL AND embedding_model IS NULL "
+            "AND embedding_dimensions IS NULL AND embedding_input_version IS NULL) OR "
+            "(embedding IS NOT NULL AND embedding_model IS NOT NULL "
+            "AND embedding_dimensions IS NOT NULL AND embedding_input_version IS NOT NULL))",
+            name="embedding_fields_together",
+        ),
+        CheckConstraint(
+            "embedding_dimensions IS NULL OR embedding_dimensions = 1024",
+            name="embedding_dimensions_fixed",
+        ),
+        CheckConstraint(
+            "embedding IS NULL OR input_decision IS NOT DISTINCT FROM 'accept'",
+            name="embedding_requires_accept",
+        ),
+        CheckConstraint(
+            "processing_status <> 'checking_duplicate' OR embedding IS NOT NULL",
+            name="checking_duplicate_requires_embedding",
         ),
         UniqueConstraint(
             "user_id",
@@ -137,6 +157,14 @@ class Idea(Base):
     evaluation_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     evaluation_prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     evaluation_schema_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(
+        VECTOR(1024),
+        nullable=True,
+        deferred=True,
+    )
+    embedding_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    embedding_dimensions: Mapped[int | None] = mapped_column(nullable=True)
+    embedding_input_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     failure_stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
     failure_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -52,6 +52,7 @@ class FailureCode(StrEnum):
     PROVIDER_RATE_LIMITED = "provider_rate_limited"
     INVALID_AI_RESPONSE = "invalid_ai_response"
     INVALID_AI_OUTPUT = "invalid_ai_output"
+    EMBEDDING_DIMENSION_MISMATCH = "embedding_dimension_mismatch"
     PROVIDER_ERROR = "provider_error"
 
 

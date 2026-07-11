@@ -5,8 +5,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import Engine, delete, inspect, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import Engine, delete, inspect, select, text
+from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.orm import Session
 
 from idea_bounty.models import (
@@ -69,6 +69,10 @@ def test_migration_creates_expected_schema(test_engine: Engine) -> None:
     }
     assert {constraint["name"] for constraint in inspector.get_check_constraints("ideas")} == {
         "ck_ideas_completed_at_matches_status",
+        "ck_ideas_checking_duplicate_requires_embedding",
+        "ck_ideas_embedding_dimensions_fixed",
+        "ck_ideas_embedding_fields_together",
+        "ck_ideas_embedding_requires_accept",
         "ck_ideas_evaluation_result_complete",
         "ck_ideas_failure_code_allowed",
         "ck_ideas_failure_fields_together",
@@ -87,10 +91,23 @@ def test_migration_creates_expected_schema(test_engine: Engine) -> None:
         "evaluation_model",
         "evaluation_prompt_version",
         "evaluation_schema_version",
+        "embedding",
+        "embedding_model",
+        "embedding_dimensions",
+        "embedding_input_version",
         "failure_stage",
         "failure_code",
         "completed_at",
     } <= idea_columns
+    embedding_column = next(
+        column for column in inspector.get_columns("ideas") if column["name"] == "embedding"
+    )
+    assert str(embedding_column["type"]) == "VECTOR(1024)"
+    with test_engine.connect() as connection:
+        assert (
+            connection.scalar(text("SELECT extversion FROM pg_extension WHERE extname = 'vector'"))
+            == "0.8.2"
+        )
     assert {index["name"] for index in inspector.get_indexes("ideas") if not index["unique"]} == {
         "ix_ideas_content_hash",
         "ix_ideas_processing_status_created_at",
@@ -289,6 +306,106 @@ def test_valid_ai_evaluation_can_be_persisted_and_revalidated(db_session: Sessio
     assert stored_idea is not None
     assert NormalizedContent.model_validate_json(json.dumps(stored_idea.normalized_content))
     assert EvaluationScores.model_validate_json(json.dumps(stored_idea.dimension_scores))
+
+
+def test_valid_embedding_can_be_persisted_and_reloaded(db_session: Session) -> None:
+    user = _make_user()
+    idea = _make_idea(user)
+    output = make_evaluation_output()
+    idea.processing_status = IdeaProcessingStatus.CHECKING_DUPLICATE.value
+    idea.input_decision = InputDecision.ACCEPT.value
+    idea.decision_reason = output.decision_reason
+    idea.normalized_content = output.normalized_content().model_dump(mode="json")
+    assert output.evaluation is not None
+    idea.dimension_scores = output.evaluation.model_dump(mode="json")
+    idea.evaluation_model = "fake-model"
+    idea.evaluation_prompt_version = "evaluation-v1"
+    idea.evaluation_schema_version = "evaluation-v1"
+    idea.embedding = [1.0, *([0.0] * 1023)]
+    idea.embedding_model = "BAAI/bge-m3"
+    idea.embedding_dimensions = 1024
+    idea.embedding_input_version = "embedding-input-v1"
+    db_session.add_all([user, idea])
+    db_session.commit()
+    db_session.expire_all()
+
+    stored_idea = db_session.scalar(select(Idea))
+
+    assert stored_idea is not None
+    assert stored_idea.embedding is not None
+    assert len(stored_idea.embedding) == 1024
+    assert stored_idea.embedding[0] == pytest.approx(1.0)
+    assert stored_idea.embedding_model == "BAAI/bge-m3"
+    assert stored_idea.embedding_dimensions == 1024
+
+
+@pytest.mark.parametrize(
+    "invalid_state",
+    [
+        "partial_metadata",
+        "wrong_dimensions_metadata",
+        "non_accept_vector",
+        "checking_without_vector",
+    ],
+)
+def test_database_rejects_invalid_embedding_states(
+    db_session: Session,
+    invalid_state: str,
+) -> None:
+    user = _make_user()
+    idea = _make_idea(user)
+    output = make_evaluation_output()
+    if invalid_state == "partial_metadata":
+        idea.embedding_model = "BAAI/bge-m3"
+    elif invalid_state == "non_accept_vector":
+        idea.embedding = [1.0, *([0.0] * 1023)]
+        idea.embedding_model = "BAAI/bge-m3"
+        idea.embedding_dimensions = 1024
+        idea.embedding_input_version = "embedding-input-v1"
+    else:
+        idea.processing_status = IdeaProcessingStatus.CHECKING_DUPLICATE.value
+        idea.input_decision = InputDecision.ACCEPT.value
+        idea.decision_reason = output.decision_reason
+        idea.normalized_content = output.normalized_content().model_dump(mode="json")
+        assert output.evaluation is not None
+        idea.dimension_scores = output.evaluation.model_dump(mode="json")
+        idea.evaluation_model = "fake-model"
+        idea.evaluation_prompt_version = "evaluation-v1"
+        idea.evaluation_schema_version = "evaluation-v1"
+        if invalid_state == "wrong_dimensions_metadata":
+            idea.embedding = [1.0, *([0.0] * 1023)]
+            idea.embedding_model = "BAAI/bge-m3"
+            idea.embedding_dimensions = 768
+            idea.embedding_input_version = "embedding-input-v1"
+    db_session.add_all([user, idea])
+
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+
+def test_database_rejects_vector_with_wrong_physical_dimensions(db_session: Session) -> None:
+    user = _make_user()
+    idea = _make_idea(user)
+    output = make_evaluation_output()
+    idea.processing_status = IdeaProcessingStatus.CHECKING_DUPLICATE.value
+    idea.input_decision = InputDecision.ACCEPT.value
+    idea.decision_reason = output.decision_reason
+    idea.normalized_content = output.normalized_content().model_dump(mode="json")
+    assert output.evaluation is not None
+    idea.dimension_scores = output.evaluation.model_dump(mode="json")
+    idea.evaluation_model = "fake-model"
+    idea.evaluation_prompt_version = "evaluation-v1"
+    idea.evaluation_schema_version = "evaluation-v1"
+    idea.embedding = [1.0, *([0.0] * 767)]
+    idea.embedding_model = "BAAI/bge-m3"
+    idea.embedding_dimensions = 1024
+    idea.embedding_input_version = "embedding-input-v1"
+    db_session.add_all([user, idea])
+
+    with pytest.raises(StatementError):
+        db_session.commit()
+    db_session.rollback()
 
 
 @pytest.mark.parametrize(
