@@ -1,6 +1,6 @@
 # Idea Bounty
 
-商业点子收集器 MVP。当前仓库只建立了后端工程基线，业务功能尚未实现。
+商业点子收集器 MVP。当前后端已实现本地账号会话、个人投稿，以及 AI 输入门禁、规范化提取和五维结构化评估；Embedding、查重、红包计算、管理员流程和前端仍待实现。
 
 ## 后端开发环境
 
@@ -15,7 +15,13 @@ uv run alembic upgrade head
 ```
 
 PostgreSQL 容器首次启动时会创建 `idea_bounty` 开发数据库和独立的
-`idea_bounty_test` 测试数据库。`.env` 中的配置均有适合本地开发的默认值；复制配置文件是可选步骤。
+`idea_bounty_test` 测试数据库。数据库配置包含本地开发默认值；真实投稿评估前必须在 `.env` 中填写 `AI_BASE_URL`、`AI_API_KEY` 和 `AI_MODEL_ID`。
+
+可以先用与生产契约相同的单次探测脚本验证模型服务，不会自动重试：
+
+```bash
+uv run python scripts/probe_ai_provider.py --show-output
+```
 
 ## 启动 API
 
@@ -39,5 +45,5 @@ cd backend
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy src tests
+uv run mypy src tests scripts/probe_ai_provider.py
 ```
