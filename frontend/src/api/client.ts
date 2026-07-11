@@ -8,9 +8,49 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+interface FastApiValidationError {
+  type: string;
+  loc: (string | number)[];
+  msg: string;
+}
+
+function formatValidationErrors(errors: FastApiValidationError[]): string {
+  return errors
+    .map((err) => {
+      const field = err.loc.filter((p) => p !== "body").join(".") || "body";
+      return `${field}: ${err.msg}`;
+    })
+    .join("；");
+}
+
+function extractErrorMessage(data: unknown, status: number): string {
+  if (data && typeof data === "object" && "detail" in data) {
+    const detail = (data as { detail: unknown }).detail;
+
+    if (Array.isArray(detail)) {
+      const formatted = formatValidationErrors(
+        detail as FastApiValidationError[],
+      );
+      if (formatted) return formatted;
+    }
+
+    if (typeof detail === "string" && detail) return detail;
+
+    if (detail !== null && typeof detail === "object") {
+      return JSON.stringify(detail);
+    }
+  }
+
+  if (status === 401) return "登录已过期，请重新登录";
+  if (status === 403) return "无权限执行此操作";
+  if (status === 404) return "请求的资源不存在或不可访问";
+
+  return `请求失败 (${status})`;
+}
+
 async function request<T>(
   path: string,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
 ): Promise<T> {
   const { method = "GET", body, signal } = options;
 
@@ -19,13 +59,21 @@ async function request<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    credentials: "include",
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      credentials: "include",
+      signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw err;
+    }
+    throw new ApiError("网络连接失败，请稍后重试", 0);
+  }
 
   if (response.status === 204) {
     return undefined as T;
@@ -40,15 +88,14 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    const detail =
+    const message = extractErrorMessage(data, response.status);
+    const detailStr =
       data && typeof data === "object" && "detail" in data
-        ? String((data as { detail: unknown }).detail)
+        ? typeof (data as { detail: unknown }).detail === "string"
+          ? ((data as { detail: string }).detail)
+          : undefined
         : undefined;
-    throw new ApiError(
-      detail ?? `请求失败 (${response.status})`,
-      response.status,
-      detail
-    );
+    throw new ApiError(message, response.status, detailStr);
   }
 
   return data as T;

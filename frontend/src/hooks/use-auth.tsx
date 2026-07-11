@@ -20,6 +20,7 @@ type AuthContextValue = {
   login: (credentials: Credentials) => Promise<User>;
   register: (credentials: Credentials) => Promise<User>;
   logout: () => Promise<void>;
+  clearAuth: () => void;
 } | null;
 
 const AuthContext = createContext<AuthContextValue>(null);
@@ -32,9 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    getCurrentUser()
+    getCurrentUser(controller.signal)
       .then((user) => setState({ user, loading: false }))
-      .catch(() => setState({ user: null, loading: false }));
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setState({ user: null, loading: false });
+      });
     return () => controller.abort();
   }, []);
 
@@ -55,12 +59,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user: null, loading: false });
   }, []);
 
+  const clearAuth = useCallback(() => {
+    setState({ user: null, loading: false });
+  }, []);
+
   const value: AuthContextValue = {
     user: state.user,
     loading: state.loading,
     login,
     register,
     logout,
+    clearAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
