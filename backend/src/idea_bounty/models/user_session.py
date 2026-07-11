@@ -23,7 +23,7 @@ class UserSession(Base):
         BigInteger,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
+        unique=True,
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -33,4 +33,4 @@ class UserSession(Base):
         server_default=func.now(),
     )
 
-    user: Mapped[User] = relationship(back_populates="sessions")
+    user: Mapped[User] = relationship(back_populates="session")

@@ -6,12 +6,16 @@ from pathlib import Path
 
 import pytest
 from alembic.config import Config
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from alembic import command
 from idea_bounty.config import get_settings
+from idea_bounty.db import get_db_session
+from idea_bounty.main import create_app
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TEST_DATABASE_URL = (
@@ -55,16 +59,49 @@ def test_engine() -> Generator[Engine, None, None]:
 
 
 @pytest.fixture
-def db_session(test_engine: Engine) -> Generator[Session, None, None]:
-    """为单个测试提供会话，并在测试前后清空认证表。"""
+def clean_database(test_engine: Engine) -> Generator[None, None, None]:
+    """在每个数据库测试前后清空认证表。"""
 
     truncate_statement = text("TRUNCATE TABLE sessions, users RESTART IDENTITY CASCADE")
     with test_engine.begin() as connection:
         connection.execute(truncate_statement)
 
+    yield
+
+    with test_engine.begin() as connection:
+        connection.execute(truncate_statement)
+
+
+@pytest.fixture
+def db_session(test_engine: Engine, clean_database: None) -> Generator[Session, None, None]:
+    """为单个测试提供直接访问测试数据库的会话。"""
+
     with Session(test_engine, expire_on_commit=False) as session:
         yield session
         session.rollback()
 
-    with test_engine.begin() as connection:
-        connection.execute(truncate_statement)
+
+@pytest.fixture
+def app(test_engine: Engine, clean_database: None) -> FastAPI:
+    """创建将数据库依赖指向测试库的应用。"""
+
+    application = create_app()
+
+    def override_get_db_session() -> Generator[Session, None, None]:
+        with Session(
+            test_engine,
+            autoflush=False,
+            expire_on_commit=False,
+        ) as session:
+            yield session
+
+    application.dependency_overrides[get_db_session] = override_get_db_session
+    return application
+
+
+@pytest.fixture
+def client(app: FastAPI) -> Generator[TestClient, None, None]:
+    """提供保存 Cookie 的认证 API 测试客户端。"""
+
+    with TestClient(app) as test_client:
+        yield test_client

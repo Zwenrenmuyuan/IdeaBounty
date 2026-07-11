@@ -43,8 +43,9 @@ class User(Base):
         server_default=func.now(),
     )
 
-    sessions: Mapped[list[UserSession]] = relationship(
+    session: Mapped[UserSession | None] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        uselist=False,
     )
