@@ -7,12 +7,15 @@
 后端使用 Python 3.12 和 [uv](https://docs.astral.sh/uv/) 管理 Python、虚拟环境与依赖。
 
 ```bash
+docker compose up -d db
 cd backend
 uv sync
 cp .env.example .env
+uv run alembic upgrade head
 ```
 
-`.env` 中的配置均有适合本地开发的默认值；复制配置文件是可选步骤。
+PostgreSQL 容器首次启动时会创建 `idea_bounty` 开发数据库和独立的
+`idea_bounty_test` 测试数据库。`.env` 中的配置均有适合本地开发的默认值；复制配置文件是可选步骤。
 
 ## 启动 API
 
@@ -28,12 +31,13 @@ uv run uvicorn idea_bounty.main:app --reload
 
 ## 后端质量检查
 
-在 `backend` 目录分别运行：
+先确保根目录的 PostgreSQL 容器健康，再在 `backend` 目录分别运行：
 
 ```bash
+docker compose ps
+cd backend
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src tests
 ```
-

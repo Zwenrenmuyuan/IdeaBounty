@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +17,9 @@ class Settings(BaseSettings):
     app_name: str = "idea-bounty-api"
     app_env: Literal["development", "test", "production"] = "development"
     debug: bool = False
+    database_url: SecretStr = SecretStr(
+        "postgresql+psycopg://idea_bounty:idea_bounty_dev@localhost:5432/idea_bounty"
+    )
 
 
 @lru_cache
