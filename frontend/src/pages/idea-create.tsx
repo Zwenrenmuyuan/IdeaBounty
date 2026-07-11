@@ -139,9 +139,15 @@ export function IdeaCreatePage() {
             <Button type="submit" disabled={submitting || !valid}>
               {submitting ? "提交中..." : "提交点子"}
             </Button>
-            <Button variant="outline" asChild>
-              <Link to="/ideas">取消</Link>
-            </Button>
+            {submitting ? (
+              <Button variant="outline" disabled>
+                取消
+              </Button>
+            ) : (
+              <Button variant="outline" asChild>
+                <Link to="/ideas">取消</Link>
+              </Button>
+            )}
           </CardFooter>
         </form>
       </Card>

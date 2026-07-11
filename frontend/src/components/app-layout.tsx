@@ -1,14 +1,28 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { ApiError } from "@/types";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   async function handleLogout() {
-    await logout();
-    navigate("/login", { replace: true });
+    setLoggingOut(true);
+    setLogoutError(null);
+    try {
+      await logout();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      setLogoutError(
+        error instanceof ApiError ? error.message : "退出失败，请稍后重试",
+      );
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   return (
@@ -42,14 +56,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 variant="outline"
                 size="sm"
                 onClick={handleLogout}
+                disabled={loggingOut}
               >
-                退出登录
+                {loggingOut ? "退出中..." : "退出登录"}
               </Button>
             </div>
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-4xl px-4 py-6">
+        {logoutError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            {logoutError}
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

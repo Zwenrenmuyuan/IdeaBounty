@@ -364,9 +364,11 @@ export function IdeaDetailPage() {
             </dl>
             {idea.payout && (
               <div className="space-y-1 border-t pt-3 text-sm">
-                <div className="flex justify-between">
+                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
                   <span className="text-muted-foreground">模拟流水号</span>
-                  <span className="font-mono">{idea.payout.reference}</span>
+                  <span className="min-w-0 break-all font-mono sm:text-right">
+                    {idea.payout.reference}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">模拟打款金额</span>
