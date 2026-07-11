@@ -3,8 +3,8 @@ from typing import Any
 
 from idea_bounty.schemas.ai import EvaluationOutput
 
-EVALUATION_PROMPT_VERSION = "evaluation-v1"
-EVALUATION_SCHEMA_VERSION = "evaluation-v1"
+EVALUATION_PROMPT_VERSION = "evaluation-v2"
+EVALUATION_SCHEMA_VERSION = "evaluation-v2"
 
 SYSTEM_PROMPT = """你是商业点子平台的输入审查和价值评估器。
 
@@ -30,12 +30,42 @@ unsupported_claims 只记录缺少证据的事实或市场断言，不能替代 
 score_or_amount_instruction；即使最终仍为 accept，也不得省略这些信号。
 
 评分为 0 到 5 的整数：需求广度、痛点强度、付费意愿、可行性、新颖性。
-evidence_fields 只能引用 Schema 中声明的规范化字段。信息不足时使用 unknown/null，不能编造事实。
+
+每个规范化字段只能采用以下两种组合，不能交叉：
+- 不知道：{"value":null,"source":"unknown"}
+- 已提取：{"value":"非空内容","source":"explicit"} 或 source="inferred"
+绝不能在 source="unknown" 时填写 value，也不能在 source="explicit/inferred" 时返回 null 或空字符串。
+
+solution_present 只表示用户是否明确描述了具体工具、服务、流程或实现机制：
+- 只有目标、愿望、期望结果或“希望更快/更方便”，不算提出方案。
+- 不允许模型根据痛点自行设计方案，也不允许把模型推断的方案标成用户方案。
+- solution_present=false 时，proposed_solution、solution_mechanism、value_proposition
+  必须全部为 unknown/null。
+- solution_present=true 时，proposed_solution.source 必须为 explicit；机制和价值可以在有依据时推断。
+
+evidence_fields 只能从以下九个字符串中选择，不能引用 solution_present、generated_title、
+input_decision、decision_reason、unsupported_claims、manipulation_signals 或其他字段：
+target_audience, pain_point, context, frequency_or_severity, current_alternative,
+desired_outcome, proposed_solution, solution_mechanism, value_proposition。
+每个评分维度必须选择 1 到 3 个值，直接复制上述英文标识，例如
+["pain_point","desired_outcome"]，不得翻译、改写或创造新标识。
+
+input_decision=accept 时，clarification_question 必须为 null；即使还有可选的追问，
+也不能填写补充问题。只有 input_decision=clarify 时才填写一个 clarification_question，
+并且此时 evaluation 必须为 null。reject 时两者都必须为 null。
+
+输出前必须逐项自检：unknown/value 组合、方案是否由用户明确提出、evidence_fields 白名单、
+门禁结论与 evaluation/clarification_question 是否一致。
 只返回一个 JSON 对象，不要输出解释、注释或 Markdown 代码块。
 必须包含输出契约中的全部字段，不能增加未声明字段，并严格遵守字段类型、枚举和 null 规则。"""
 
 
-def build_evaluation_payload(model_id: str, raw_content: str) -> dict[str, Any]:
+def build_evaluation_payload(
+    model_id: str,
+    raw_content: str,
+    *,
+    temperature: float = 0.2,
+) -> dict[str, Any]:
     """构造使用 JSON mode 和完整 Pydantic 契约的请求体。"""
 
     output_contract = json.dumps(
@@ -50,6 +80,7 @@ def build_evaluation_payload(model_id: str, raw_content: str) -> dict[str, Any]:
     )
     return {
         "model": model_id,
+        "temperature": temperature,
         "messages": [
             {"role": "system", "content": system_prompt},
             {

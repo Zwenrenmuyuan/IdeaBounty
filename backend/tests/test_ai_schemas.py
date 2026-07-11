@@ -6,7 +6,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from idea_bounty.models import InputDecision
+from idea_bounty.models import EvidenceField, InputDecision
 from idea_bounty.schemas.ai import EvaluationOutput
 from tests.ai_fakes import evaluation_output_data
 
@@ -53,6 +53,14 @@ def invalid_output_cases() -> list[dict[str, object]]:
     invented_solution["proposed_solution"] = {"value": "模型编造的方案", "source": "inferred"}
     cases.append(invented_solution)
 
+    inferred_solution = evaluation_output_data()
+    inferred_solution["solution_present"] = True
+    inferred_solution["proposed_solution"] = {
+        "value": "模型根据痛点推断出的方案",
+        "source": "inferred",
+    }
+    cases.append(inferred_solution)
+
     accept_without_scores = evaluation_output_data()
     accept_without_scores["evaluation"] = None
     cases.append(accept_without_scores)
@@ -86,3 +94,42 @@ def test_normalized_content_excludes_decision_and_scores() -> None:
     assert "decision_reason" not in stored_content
     assert "evaluation" not in stored_content
     assert "manipulation_signals" in stored_content
+
+
+def test_json_schema_exposes_cross_field_and_evidence_constraints() -> None:
+    schema = EvaluationOutput.model_json_schema()
+    normalized_field_schema = schema["$defs"]["NormalizedField"]
+    evidence_field_schema = schema["$defs"]["EvidenceField"]
+    evidence_items = schema["$defs"]["DimensionScore"]["properties"]["evidence_fields"]["items"]
+
+    assert len(normalized_field_schema["oneOf"]) == 2
+    assert normalized_field_schema["oneOf"][0]["properties"] == {
+        "source": {"const": "unknown"},
+        "value": {"type": "null"},
+    }
+    assert set(evidence_field_schema["enum"]) == {field.value for field in EvidenceField}
+    assert evidence_items == {"$ref": "#/$defs/EvidenceField"}
+    assert schema["$defs"]["DimensionScore"]["properties"]["evidence_fields"] == {
+        "items": {"$ref": "#/$defs/EvidenceField"},
+        "maxItems": 3,
+        "minItems": 1,
+        "title": "Evidence Fields",
+        "type": "array",
+    }
+    solution_cases = schema["allOf"][0]["oneOf"]
+    decision_cases = schema["allOf"][1]["oneOf"]
+    assert {case["properties"]["solution_present"]["const"] for case in solution_cases} == {
+        False,
+        True,
+    }
+    explicit_solution_case = next(
+        case for case in solution_cases if case["properties"]["solution_present"]["const"]
+    )
+    assert explicit_solution_case["properties"]["proposed_solution"]["properties"]["source"] == {
+        "const": "explicit"
+    }
+    accept_case = next(
+        case for case in decision_cases if case["properties"]["input_decision"]["const"] == "accept"
+    )
+    assert accept_case["properties"]["clarification_question"] == {"type": "null"}
+    assert accept_case["properties"]["evaluation"] == {"not": {"type": "null"}}

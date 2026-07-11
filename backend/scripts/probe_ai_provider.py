@@ -40,6 +40,7 @@ class ProbeSettings(BaseSettings):
     api_key: SecretStr
     model_id: str
     timeout_seconds: float = Field(default=60, gt=0, le=300)
+    temperature: float = Field(default=0.2, ge=0, le=2)
 
 
 class ProbeFailure(RuntimeError):
@@ -78,7 +79,11 @@ def send_probe(settings: ProbeSettings) -> tuple[dict[str, Any], float, str | No
 
     endpoint = build_chat_completions_url(settings.base_url)
     body = json.dumps(
-        build_evaluation_payload(settings.model_id, SAMPLE_CONTENT),
+        build_evaluation_payload(
+            settings.model_id,
+            SAMPLE_CONTENT,
+            temperature=settings.temperature,
+        ),
         ensure_ascii=False,
     ).encode("utf-8")
     request = Request(

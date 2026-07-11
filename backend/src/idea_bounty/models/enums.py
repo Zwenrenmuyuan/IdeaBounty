@@ -72,6 +72,20 @@ class ScoreConfidence(StrEnum):
     LOW = "low"
 
 
+class EvidenceField(StrEnum):
+    """评分理由允许引用的规范化字段。"""
+
+    TARGET_AUDIENCE = "target_audience"
+    PAIN_POINT = "pain_point"
+    CONTEXT = "context"
+    FREQUENCY_OR_SEVERITY = "frequency_or_severity"
+    CURRENT_ALTERNATIVE = "current_alternative"
+    DESIRED_OUTCOME = "desired_outcome"
+    PROPOSED_SOLUTION = "proposed_solution"
+    SOLUTION_MECHANISM = "solution_mechanism"
+    VALUE_PROPOSITION = "value_proposition"
+
+
 class ManipulationSignal(StrEnum):
     """用户试图影响模型判断的内部审计信号。"""
 

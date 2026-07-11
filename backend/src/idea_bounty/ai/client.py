@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -17,6 +18,25 @@ from idea_bounty.models import FailureCode
 from idea_bounty.schemas.ai import EvaluationOutput
 
 logger = logging.getLogger(__name__)
+
+SAFE_VALIDATION_PATH_PART = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
+
+
+def _validation_error_signature(error: ValidationError) -> str:
+    """生成不含模型值和用户内容的稳定校验错误签名。"""
+
+    signatures: list[str] = []
+    for detail in error.errors(include_url=False, include_input=False)[:5]:
+        path_parts: list[str] = []
+        for part in detail["loc"]:
+            if isinstance(part, int):
+                path_parts.append(str(part))
+            else:
+                text = str(part)
+                path_parts.append(text if SAFE_VALIDATION_PATH_PART.fullmatch(text) else "<field>")
+        path = ".".join(path_parts) or "<root>"
+        signatures.append(f"{path}:{detail['type']}")
+    return "|".join(signatures)
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,7 +109,11 @@ class OpenAICompatibleEvaluationProvider:
 
     def evaluate(self, raw_content: str) -> EvaluationProviderResult:
         endpoint = self._build_endpoint(self._settings.base_url)
-        payload = build_evaluation_payload(self._settings.model_id, raw_content)
+        payload = build_evaluation_payload(
+            self._settings.model_id,
+            raw_content,
+            temperature=self._settings.temperature,
+        )
         headers = {
             "Authorization": f"Bearer {self._settings.api_key.get_secret_value()}",
             "Content-Type": "application/json",
@@ -173,9 +197,10 @@ class OpenAICompatibleEvaluationProvider:
             output = EvaluationOutput.model_validate_json(content)
         except ValidationError as exc:
             logger.warning(
-                "AI 输出未通过契约校验：model=%s errors=%s",
+                "AI 输出未通过契约校验：model=%s errors=%s signature=%s",
                 self._settings.model_id,
                 exc.error_count(),
+                _validation_error_signature(exc),
             )
             raise EvaluationProviderError(
                 FailureCode.INVALID_AI_OUTPUT,

@@ -18,6 +18,7 @@ class AISettings(BaseSettings):
     model_id: str = Field(min_length=1)
     timeout_seconds: float = Field(default=60, gt=0, le=300)
     max_retries: int = Field(default=2, ge=0, le=3)
+    temperature: float = Field(default=0.2, ge=0, le=2)
 
 
 @lru_cache

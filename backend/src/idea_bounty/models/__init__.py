@@ -1,6 +1,7 @@
 """数据库模型及其枚举。"""
 
 from idea_bounty.models.enums import (
+    EvidenceField,
     FailureCode,
     FailureStage,
     IdeaProcessingStatus,
@@ -16,6 +17,7 @@ from idea_bounty.models.user import User
 from idea_bounty.models.user_session import UserSession
 
 __all__ = [
+    "EvidenceField",
     "FailureCode",
     "FailureStage",
     "Idea",

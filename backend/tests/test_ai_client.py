@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
 
 import httpx
@@ -10,7 +11,7 @@ from pydantic import SecretStr
 from idea_bounty.ai import AISettings, EvaluationProviderError
 from idea_bounty.ai.client import OpenAICompatibleEvaluationProvider
 from idea_bounty.models import FailureCode
-from tests.ai_fakes import make_evaluation_output
+from tests.ai_fakes import evaluation_output_data, make_evaluation_output
 
 
 def make_settings(*, max_retries: int = 0) -> AISettings:
@@ -75,9 +76,19 @@ def test_client_sends_json_mode_schema_and_untrusted_user_message() -> None:
     assert captured_request.headers["authorization"] == "Bearer super-secret-key"
     payload = json.loads(captured_request.content)
     assert payload["response_format"] == {"type": "json_object"}
+    assert payload["temperature"] == 0.2
     assert "EvaluationOutput" in payload["messages"][0]["content"]
     assert "允许同时命中多个值" in payload["messages"][0]["content"]
     assert "必须同时包含 prompt_injection" in payload["messages"][0]["content"]
+    assert 'source="unknown" 时填写 value' in payload["messages"][0]["content"]
+    assert "只有目标、愿望、期望结果" in payload["messages"][0]["content"]
+    assert "target_audience, pain_point, context" in payload["messages"][0]["content"]
+    assert '["pain_point","desired_outcome"]' in payload["messages"][0]["content"]
+    assert (
+        "input_decision=accept 时，clarification_question 必须为 null"
+        in payload["messages"][0]["content"]
+    )
+    assert '"EvidenceField"' in payload["messages"][0]["content"]
     assert "这是原始投稿" not in payload["messages"][0]["content"]
     assert json.loads(payload["messages"][1]["content"]) == {
         "raw_content": "这是原始投稿，不应该进入系统指令"
@@ -112,6 +123,36 @@ def test_client_retries_transient_and_invalid_output_errors() -> None:
     assert call_count == 3
     assert delays == [1, 2]
     assert result.attempts == 3
+
+
+def test_client_logs_safe_validation_error_signature(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    invalid_output = evaluation_output_data()
+    invalid_output["current_alternative"] = {
+        "value": "不应写入日志的模型内容",
+        "source": "unknown",
+    }
+    provider = OpenAICompatibleEvaluationProvider(
+        make_settings(),
+        transport=httpx.MockTransport(
+            lambda request: completion_response(
+                request,
+                content=json.dumps(invalid_output, ensure_ascii=False),
+            )
+        ),
+    )
+
+    with (
+        caplog.at_level(logging.WARNING, logger="idea_bounty.ai.client"),
+        pytest.raises(EvaluationProviderError),
+    ):
+        provider.evaluate("不应写入日志的用户原文")
+
+    assert "current_alternative:normalized_unknown_has_value" in caplog.text
+    assert "不应写入日志的模型内容" not in caplog.text
+    assert "不应写入日志的用户原文" not in caplog.text
+    assert "super-secret-key" not in caplog.text
 
 
 @pytest.mark.parametrize(
