@@ -27,9 +27,14 @@ class IdeaCreationResult:
 def calculate_content_hash(raw_content: str) -> str:
     """计算用于后续精确重复召回的规范化内容哈希。"""
 
+    return sha256(normalize_content_for_hash(raw_content).encode()).hexdigest()
+
+
+def normalize_content_for_hash(raw_content: str) -> str:
+    """规范化原文，供哈希计算和哈希命中后的二次比较复用。"""
+
     normalized_content = normalize("NFKC", raw_content).casefold()
-    collapsed_content = " ".join(normalized_content.split())
-    return sha256(collapsed_content.encode()).hexdigest()
+    return " ".join(normalized_content.split())
 
 
 def _find_by_submission_key(
