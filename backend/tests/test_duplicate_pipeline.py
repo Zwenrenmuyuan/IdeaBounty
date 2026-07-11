@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -108,6 +109,10 @@ def test_first_idea_without_candidates_completes_as_novel(
     assert idea is not None
     assert idea.duplicate_method == "no_candidates"
     assert idea.duplicate_confidence == "high"
+    assert idea.commercial_score == 60
+    assert idea.base_amount == Decimal("18.37")
+    assert idea.duplicate_deduction == Decimal("0.00")
+    assert idea.final_amount == Decimal("18.37")
     assert duplicate_provider.call_count == 0
 
 
@@ -126,6 +131,21 @@ def test_database_rejects_partial_duplicate_snapshot(
     db_session.rollback()
 
 
+def test_database_rejects_inconsistent_bounty_snapshot(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    register(client)
+    submit(client, "社区老人行动不便时难以购买生活用品")
+    idea = db_session.scalar(select(Idea))
+    assert idea is not None
+    idea.final_amount = Decimal("99.00")
+
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+
 def test_exact_hash_match_skips_llm_and_returns_public_match(
     client: TestClient,
     duplicate_provider: FakeDuplicateProvider,
@@ -138,6 +158,9 @@ def test_exact_hash_match_skips_llm_and_returns_public_match(
     assert duplicate.json()["duplicate_result"]["verdict"] == "duplicate"
     assert duplicate.json()["duplicate_result"]["matched_public_id"] == original.json()["public_id"]
     assert duplicate.json()["duplicate_result"]["matched_idea_url"].endswith("/summary")
+    assert duplicate.json()["base_amount"] == 18.37
+    assert duplicate.json()["duplicate_deduction"] == 18.37
+    assert duplicate.json()["final_amount"] == 0.0
     assert duplicate_provider.call_count == 0
 
 
@@ -187,6 +210,8 @@ def test_llm_result_is_saved_and_medium_duplicate_becomes_related(
     assert idea.duplicate_schema_version == "duplicate-evaluation-v1"
     assert idea.duplicate_comparison is not None
     assert "matched_internal_id" not in idea.duplicate_comparison
+    assert idea.duplicate_deduction == Decimal("0.00")
+    assert idea.final_amount == idea.base_amount
 
 
 def test_duplicate_call_observes_committed_stage_and_replay_does_not_repeat(

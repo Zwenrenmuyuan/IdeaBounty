@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
@@ -13,6 +14,7 @@ from sqlalchemy import (
     ForeignKey,
     Identity,
     Index,
+    Numeric,
     SmallInteger,
     String,
     Text,
@@ -177,6 +179,27 @@ class Idea(Base):
             "AND duplicate_prompt_version IS NOT NULL AND duplicate_schema_version IS NOT NULL)",
             name="llm_duplicate_result_shape",
         ),
+        CheckConstraint(
+            "((commercial_score IS NULL AND base_amount IS NULL "
+            "AND duplicate_deduction IS NULL AND final_amount IS NULL) OR "
+            "(commercial_score IS NOT NULL AND base_amount IS NOT NULL "
+            "AND duplicate_deduction IS NOT NULL AND final_amount IS NOT NULL))",
+            name="bounty_fields_together",
+        ),
+        CheckConstraint(
+            "commercial_score IS NULL OR "
+            "(commercial_score BETWEEN 0 AND 100 "
+            "AND base_amount BETWEEN 0 AND 100 "
+            "AND duplicate_deduction BETWEEN 0 AND base_amount "
+            "AND final_amount BETWEEN 0 AND 100 "
+            "AND base_amount = duplicate_deduction + final_amount)",
+            name="bounty_values_valid",
+        ),
+        CheckConstraint(
+            "(commercial_score IS NOT NULL) = "
+            "(processing_status = 'completed' AND input_decision = 'accept')",
+            name="bounty_matches_completed_accept",
+        ),
         UniqueConstraint(
             "user_id",
             "submission_key",
@@ -260,6 +283,10 @@ class Idea(Base):
     duplicate_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     duplicate_prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     duplicate_schema_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    commercial_score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    base_amount: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    duplicate_deduction: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    final_amount: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     failure_stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
     failure_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

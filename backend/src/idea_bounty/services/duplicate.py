@@ -17,13 +17,14 @@ from idea_bounty.models import (
     IdeaProcessingStatus,
     ScoreConfidence,
 )
-from idea_bounty.schemas.ai import NormalizedContent
+from idea_bounty.schemas.ai import EvaluationScores, NormalizedContent
 from idea_bounty.schemas.duplicate import (
     ComparableIdea,
     DuplicateCandidateInput,
     DuplicateComparisonInput,
     DuplicateComparisonSnapshot,
 )
+from idea_bounty.services.bounty import calculate_bounty
 from idea_bounty.services.duplicate_recall import (
     CandidateDataError,
     CandidateRecallStateError,
@@ -84,6 +85,14 @@ def _store_duplicate_success(
 ) -> Idea:
     """原子保存完整查重快照并推进到 completed。"""
 
+    try:
+        scores = EvaluationScores.model_validate_json(
+            json.dumps(idea.dimension_scores, ensure_ascii=False)
+        )
+    except (TypeError, ValidationError):
+        return _store_duplicate_failure(db_session, idea, FailureCode.INVALID_AI_OUTPUT)
+    bounty = calculate_bounty(scores, effective_verdict)
+
     db_session.execute(
         update(Idea)
         .where(
@@ -109,6 +118,10 @@ def _store_duplicate_success(
             duplicate_schema_version=(
                 DUPLICATE_SCHEMA_VERSION if method is DuplicateMethod.LLM_CANDIDATES else None
             ),
+            commercial_score=bounty.commercial_score,
+            base_amount=bounty.base_amount,
+            duplicate_deduction=bounty.duplicate_deduction,
+            final_amount=bounty.final_amount,
             failure_stage=None,
             failure_code=None,
             completed_at=func.now(),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from uuid import UUID, uuid1, uuid4
 
 import pytest
@@ -64,12 +65,20 @@ def test_create_idea_preserves_raw_content_and_hides_internal_fields(
         "clarification_question",
         "evaluation",
         "duplicate_result",
+        "commercial_score",
+        "base_amount",
+        "duplicate_deduction",
+        "final_amount",
     }
     assert response.json()["submission_key"] == str(submission_key)
     assert response.json()["raw_content"] == raw_content
     assert response.json()["processing_status"] == "completed"
     assert response.json()["input_decision"] == "accept"
     assert response.json()["evaluation"]["demand_breadth"]["score"] == 3
+    assert response.json()["commercial_score"] == 60
+    assert response.json()["base_amount"] == 18.37
+    assert response.json()["duplicate_deduction"] == 0.0
+    assert response.json()["final_amount"] == 18.37
     assert response.json()["retry_count"] == 0
     assert UUID(response.json()["public_id"]).version == 4
 
@@ -82,6 +91,8 @@ def test_create_idea_preserves_raw_content_and_hides_internal_fields(
     assert stored_idea.embedding_dimensions == 1024
     assert stored_idea.embedding_input_version == "embedding-input-v1"
     assert stored_idea.input_decision == InputDecision.ACCEPT.value
+    assert stored_idea.commercial_score == 60
+    assert stored_idea.final_amount == Decimal("18.37")
 
 
 @pytest.mark.parametrize("length", [8, 2000])
@@ -122,7 +133,11 @@ def test_create_idea_rejects_invalid_input(
     assert response.status_code == 422
 
 
-def test_create_idea_rejects_extra_fields(client: TestClient) -> None:
+@pytest.mark.parametrize("extra_field", [{"user_id": 999}, {"final_amount": 100}])
+def test_create_idea_rejects_extra_fields(
+    client: TestClient,
+    extra_field: dict[str, int],
+) -> None:
     _register(client, "alice")
 
     response = client.post(
@@ -130,7 +145,7 @@ def test_create_idea_rejects_extra_fields(client: TestClient) -> None:
         json={
             "submission_key": str(uuid4()),
             "raw_content": "这是字段完整且长度足够的投稿内容",
-            "user_id": 999,
+            **extra_field,
         },
     )
 

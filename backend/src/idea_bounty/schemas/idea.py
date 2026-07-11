@@ -88,6 +88,10 @@ class IdeaResponse(IdeaSummaryResponse):
     clarification_question: str | None
     evaluation: EvaluationScores | None
     duplicate_result: IdeaDuplicateResultResponse | None
+    commercial_score: int | None
+    base_amount: float | None
+    duplicate_deduction: float | None
+    final_amount: float | None
 
     @classmethod
     def from_idea(
@@ -110,6 +114,12 @@ class IdeaResponse(IdeaSummaryResponse):
             ),
             evaluation=evaluation,
             duplicate_result=_build_duplicate_result(idea, matched_public_id),
+            commercial_score=idea.commercial_score,
+            base_amount=float(idea.base_amount) if idea.base_amount is not None else None,
+            duplicate_deduction=(
+                float(idea.duplicate_deduction) if idea.duplicate_deduction is not None else None
+            ),
+            final_amount=float(idea.final_amount) if idea.final_amount is not None else None,
         )
 
 

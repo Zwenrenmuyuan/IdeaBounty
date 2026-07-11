@@ -6,7 +6,8 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.orm import Session
 
-from idea_bounty.models import Idea, IdeaProcessingStatus, User
+from idea_bounty.models import DuplicateVerdict, Idea, IdeaProcessingStatus, User
+from idea_bounty.services.bounty import calculate_bounty
 from idea_bounty.services.duplicate_recall import (
     CandidateDataError,
     CandidateRecallStateError,
@@ -45,6 +46,12 @@ def _add_idea(
     matched_idea_id: int | None = None,
 ) -> Idea:
     output = make_evaluation_output(decision)
+    is_completed_accept = status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
+    bounty = (
+        calculate_bounty(output.evaluation, DuplicateVerdict(duplicate_verdict))
+        if is_completed_accept and output.evaluation is not None
+        else None
+    )
     idea = Idea(
         user_id=user_id,
         submission_key=uuid4(),
@@ -67,34 +74,18 @@ def _add_idea(
         embedding_input_version=embedding_input_version if embedding is not None else None,
         duplicate_method=(
             ("exact_hash" if duplicate_verdict == "duplicate" else "no_candidates")
-            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
+            if is_completed_accept
             else None
         ),
-        ai_duplicate_verdict=(
-            duplicate_verdict
-            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
-            else None
-        ),
-        effective_duplicate_verdict=(
-            duplicate_verdict
-            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
-            else None
-        ),
-        duplicate_confidence=(
-            "high"
-            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
-            else None
-        ),
-        matched_idea_id=(
-            matched_idea_id
-            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
-            else None
-        ),
-        duplicate_reason=(
-            "历史查重测试快照"
-            if status == IdeaProcessingStatus.COMPLETED.value and decision == "accept"
-            else None
-        ),
+        ai_duplicate_verdict=(duplicate_verdict if is_completed_accept else None),
+        effective_duplicate_verdict=(duplicate_verdict if is_completed_accept else None),
+        duplicate_confidence=("high" if is_completed_accept else None),
+        matched_idea_id=(matched_idea_id if is_completed_accept else None),
+        duplicate_reason=("历史查重测试快照" if is_completed_accept else None),
+        commercial_score=bounty.commercial_score if bounty is not None else None,
+        base_amount=bounty.base_amount if bounty is not None else None,
+        duplicate_deduction=bounty.duplicate_deduction if bounty is not None else None,
+        final_amount=bounty.final_amount if bounty is not None else None,
         failure_stage="checking_duplicate" if status == IdeaProcessingStatus.FAILED.value else None,
         failure_code="provider_error" if status == IdeaProcessingStatus.FAILED.value else None,
         completed_at=(

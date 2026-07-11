@@ -71,10 +71,13 @@ def test_evaluation_decision_advances_expected_state(
     assert stored_idea.normalized_content is not None
     if decision == InputDecision.ACCEPT.value:
         assert response.json()["evaluation"] is not None
+        assert response.json()["final_amount"] == 18.37
         assert stored_idea.dimension_scores is not None
         assert stored_idea.completed_at is not None
     else:
         assert response.json()["evaluation"] is None
+        assert response.json()["commercial_score"] is None
+        assert response.json()["final_amount"] is None
         assert stored_idea.dimension_scores is None
         assert stored_idea.completed_at is not None
 
@@ -235,6 +238,10 @@ def test_retry_rejects_non_failed_and_exhausted_ideas(
     idea.duplicate_model = None
     idea.duplicate_prompt_version = None
     idea.duplicate_schema_version = None
+    idea.commercial_score = None
+    idea.base_amount = None
+    idea.duplicate_deduction = None
+    idea.final_amount = None
     idea.completed_at = None
     idea.embedding_dimensions = None
     idea.embedding_input_version = None
