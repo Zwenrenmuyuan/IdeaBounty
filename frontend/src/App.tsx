@@ -6,6 +6,7 @@ import { IdeaCreatePage } from "@/pages/idea-create";
 import { IdeaDetailPage } from "@/pages/idea-detail";
 import { IdeaSummaryPage } from "@/pages/idea-summary";
 import { ProtectedRoute } from "@/components/protected-route";
+import { SubmitterRoute } from "@/components/submitter-route";
 import { AdminRoute } from "@/components/admin-route";
 import { AdminIdeaListPage } from "@/pages/admin-idea-list";
 import { AdminIdeaDetailPage } from "@/pages/admin-idea-detail";
@@ -18,25 +19,25 @@ export default function App() {
       <Route
         path="/ideas"
         element={
-          <ProtectedRoute>
+          <SubmitterRoute>
             <IdeaListPage />
-          </ProtectedRoute>
+          </SubmitterRoute>
         }
       />
       <Route
         path="/ideas/new"
         element={
-          <ProtectedRoute>
+          <SubmitterRoute>
             <IdeaCreatePage />
-          </ProtectedRoute>
+          </SubmitterRoute>
         }
       />
       <Route
         path="/ideas/:publicId"
         element={
-          <ProtectedRoute>
+          <SubmitterRoute>
             <IdeaDetailPage />
-          </ProtectedRoute>
+          </SubmitterRoute>
         }
       />
       <Route

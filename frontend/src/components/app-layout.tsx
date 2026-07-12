@@ -14,6 +14,7 @@ const NAV_LINK_CLASS = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === "admin";
   const navigate = useNavigate();
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-border/70 bg-background/85 backdrop-blur-xl">
         <div className="mx-auto flex min-h-16 max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-2">
           <NavLink
-            to="/ideas"
+            to={isAdmin ? "/admin" : "/ideas"}
             className="flex items-center gap-2.5"
             aria-label="Idea Bounty 首页"
           >
@@ -48,35 +49,39 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           </NavLink>
           <nav className="flex min-w-0 items-center gap-0.5 sm:gap-1" aria-label="主导航">
-            <NavLink
-              to="/ideas"
-              className={({ isActive }) =>
-                cn(
-                  NAV_LINK_CLASS,
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-white/60 hover:text-foreground",
-                )
-              }
-            >
-              <FileText />
-              <span className="hidden sm:inline">我的投稿</span>
-            </NavLink>
-            <NavLink
-              to="/ideas/new"
-              className={({ isActive }) =>
-                cn(
-                  NAV_LINK_CLASS,
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-white/60 hover:text-foreground",
-                )
-              }
-            >
-              <Plus />
-              <span className="hidden sm:inline">提交点子</span>
-            </NavLink>
-            {user?.role === "admin" && (
+            {!isAdmin && (
+              <>
+                <NavLink
+                  to="/ideas"
+                  className={({ isActive }) =>
+                    cn(
+                      NAV_LINK_CLASS,
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-white/60 hover:text-foreground",
+                    )
+                  }
+                >
+                  <FileText />
+                  <span className="hidden sm:inline">我的投稿</span>
+                </NavLink>
+                <NavLink
+                  to="/ideas/new"
+                  className={({ isActive }) =>
+                    cn(
+                      NAV_LINK_CLASS,
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-white/60 hover:text-foreground",
+                    )
+                  }
+                >
+                  <Plus />
+                  <span className="hidden sm:inline">提交点子</span>
+                </NavLink>
+              </>
+            )}
+            {isAdmin && (
               <NavLink
                 to="/admin"
                 className={({ isActive }) =>

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from idea_bounty.ai import DuplicateProvider, EvaluationProvider
 from idea_bounty.api.dependencies import (
+    get_current_submitter,
     get_current_user,
     get_duplicate_provider,
     get_embedding_provider,
@@ -58,7 +59,7 @@ router = APIRouter(prefix="/me/ideas", tags=["ideas"])
 def create_idea(
     payload: IdeaCreateRequest,
     response: Response,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_submitter)],
     db_session: Annotated[Session, Depends(get_db_session)],
     evaluation_provider: Annotated[EvaluationProvider, Depends(get_evaluation_provider)],
     embedding_provider: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
@@ -119,7 +120,7 @@ def list_ideas(
 def supplement_idea(
     public_id: UUID4,
     payload: IdeaSupplementRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_submitter)],
     db_session: Annotated[Session, Depends(get_db_session)],
     evaluation_provider: Annotated[EvaluationProvider, Depends(get_evaluation_provider)],
     embedding_provider: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
@@ -165,7 +166,7 @@ def supplement_idea(
 )
 def retry_idea_processing(
     public_id: UUID4,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_submitter)],
     db_session: Annotated[Session, Depends(get_db_session)],
     evaluation_provider: Annotated[EvaluationProvider, Depends(get_evaluation_provider)],
     embedding_provider: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
@@ -211,7 +212,7 @@ def retry_idea_processing(
 )
 def delete_idea(
     public_id: UUID4,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_submitter)],
     db_session: Annotated[Session, Depends(get_db_session)],
 ) -> Response:
     """允许所有者删除需补充、已拒绝或处理失败的投稿。"""

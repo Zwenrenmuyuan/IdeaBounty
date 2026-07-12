@@ -78,7 +78,7 @@ Cookie Session。当前使用同一套响应式页面覆盖桌面和移动端，
 uv run python scripts/promote_admin.py <username>
 ```
 
-管理员可以通过 `/api/admin/ideas` 查看已经完成有效评估的投稿，通过
+管理员账号只用于后台审核，不能创建、补充、重试或删除投稿。管理员可以通过 `/api/admin/ideas` 查看已经完成有效评估的投稿，通过
 `POST /api/admin/ideas/{public_id}/process` 确认当前金额、调整后确认或驳回。正金额会在同一事务中生成 `SIM-` 开头的模拟流水；该记录不对应任何真实支付。
 
 ## 后端质量检查

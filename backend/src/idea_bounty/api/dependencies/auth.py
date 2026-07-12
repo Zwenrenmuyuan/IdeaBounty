@@ -36,3 +36,16 @@ def get_current_admin(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="需要管理员权限",
     )
+
+
+def get_current_submitter(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """只允许普通用户创建或修改投稿。"""
+
+    if current_user.role == UserRole.USER.value:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="管理员不能提交或修改点子",
+    )

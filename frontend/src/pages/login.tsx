@@ -32,8 +32,8 @@ export function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await login({ username: username.trim(), password });
-      navigate(from, { replace: true });
+      const user = await login({ username: username.trim(), password });
+      navigate(user.role === "admin" ? "/admin" : from, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError("用户名或密码错误");

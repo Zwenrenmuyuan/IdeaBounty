@@ -35,6 +35,19 @@ def make_admin(client: TestClient, db_session: Session) -> None:
     assert promote_user_to_admin(db_session, "admin")
 
 
+def submit_then_make_admin(
+    client: TestClient,
+    db_session: Session,
+    content: str = "社区老人行动不便时买菜很困难",
+) -> str:
+    """先以普通用户身份投稿，再将账号提升为管理员。"""
+
+    register(client)
+    public_id = submit(client, content)
+    assert promote_user_to_admin(db_session, "admin")
+    return public_id
+
+
 def test_regular_user_cannot_access_admin_api(client: TestClient) -> None:
     register(client, "alice")
 
@@ -48,8 +61,7 @@ def test_confirm_creates_one_simulated_payout_and_locks_result(
     client: TestClient,
     db_session: Session,
 ) -> None:
-    make_admin(client, db_session)
-    public_id = submit(client)
+    public_id = submit_then_make_admin(client, db_session)
 
     response = client.post(
         f"/api/admin/ideas/{public_id}/process",
@@ -77,8 +89,7 @@ def test_adjust_updates_final_amount_and_uses_adjusted_payout(
     client: TestClient,
     db_session: Session,
 ) -> None:
-    make_admin(client, db_session)
-    public_id = submit(client)
+    public_id = submit_then_make_admin(client, db_session)
 
     response = client.post(
         f"/api/admin/ideas/{public_id}/process",
@@ -99,8 +110,7 @@ def test_reject_sets_zero_without_payout(
     client: TestClient,
     db_session: Session,
 ) -> None:
-    make_admin(client, db_session)
-    public_id = submit(client)
+    public_id = submit_then_make_admin(client, db_session)
 
     response = client.post(
         f"/api/admin/ideas/{public_id}/process",
@@ -122,8 +132,7 @@ def test_adjust_to_zero_does_not_create_payout(
     client: TestClient,
     db_session: Session,
 ) -> None:
-    make_admin(client, db_session)
-    public_id = submit(client)
+    public_id = submit_then_make_admin(client, db_session)
 
     response = client.post(
         f"/api/admin/ideas/{public_id}/process",
@@ -163,8 +172,11 @@ def test_incomplete_idea_cannot_be_processed(
     evaluation_provider: FakeEvaluationProvider,
 ) -> None:
     evaluation_provider.outcomes = [make_evaluation_output("clarify")]
-    make_admin(client, db_session)
-    public_id = submit(client, "我有一个还没有描述清楚的生活问题")
+    public_id = submit_then_make_admin(
+        client,
+        db_session,
+        "我有一个还没有描述清楚的生活问题",
+    )
 
     response = client.post(
         f"/api/admin/ideas/{public_id}/process",
@@ -178,8 +190,7 @@ def test_admin_list_detail_and_summary(
     client: TestClient,
     db_session: Session,
 ) -> None:
-    make_admin(client, db_session)
-    public_id = submit(client)
+    public_id = submit_then_make_admin(client, db_session)
     client.post(f"/api/admin/ideas/{public_id}/process", json={"action": "confirmed"})
 
     list_response = client.get("/api/admin/ideas")
@@ -210,16 +221,46 @@ def test_admin_list_only_contains_reviewable_ideas(
         make_evaluation_output("reject"),
         make_evaluation_output("accept"),
     ]
-    make_admin(client, db_session)
+    register(client)
     submit(client, "这是信息不足且需要用户继续补充的投稿")
     submit(client, "这是会被输入门禁拒绝的无效投稿内容")
     accepted_public_id = submit(client, "这是可以进入管理员审核队列的有效投稿")
+    assert promote_user_to_admin(db_session, "admin")
 
     response = client.get("/api/admin/ideas")
 
     assert response.status_code == 200
     assert response.json()["total"] == 1
     assert [item["public_id"] for item in response.json()["items"]] == [accepted_public_id]
+
+
+def test_admin_cannot_create_or_modify_ideas(
+    client: TestClient,
+    db_session: Session,
+    evaluation_provider: FakeEvaluationProvider,
+) -> None:
+    public_id = submit_then_make_admin(client, db_session)
+
+    responses = [
+        client.post(
+            "/api/me/ideas",
+            json={
+                "submission_key": str(uuid4()),
+                "raw_content": "管理员不应该能够创建新的投稿内容",
+            },
+        ),
+        client.post(
+            f"/api/me/ideas/{public_id}/supplement",
+            json={"raw_content": "管理员不应该能够补充已有投稿内容"},
+        ),
+        client.post(f"/api/me/ideas/{public_id}/retry"),
+        client.delete(f"/api/me/ideas/{public_id}"),
+    ]
+
+    assert [response.status_code for response in responses] == [403, 403, 403, 403]
+    assert all(response.json() == {"detail": "管理员不能提交或修改点子"} for response in responses)
+    assert evaluation_provider.call_count == 1
+    assert db_session.scalar(select(func.count()).select_from(Idea)) == 1
 
 
 def test_unknown_admin_idea_returns_not_found(
