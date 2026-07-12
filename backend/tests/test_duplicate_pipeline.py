@@ -206,8 +206,8 @@ def test_llm_result_is_saved_and_medium_duplicate_becomes_related(
     assert idea.ai_duplicate_verdict == "duplicate"
     assert idea.effective_duplicate_verdict == "related"
     assert idea.duplicate_model == "fake-duplicate-model"
-    assert idea.duplicate_prompt_version == "duplicate-evaluation-v1"
-    assert idea.duplicate_schema_version == "duplicate-evaluation-v1"
+    assert idea.duplicate_prompt_version == "duplicate-evaluation-v2"
+    assert idea.duplicate_schema_version == "duplicate-evaluation-v2"
     assert idea.duplicate_comparison is not None
     assert "matched_internal_id" not in idea.duplicate_comparison
     assert idea.duplicate_deduction == Decimal("0.00")

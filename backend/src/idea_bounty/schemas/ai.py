@@ -80,6 +80,26 @@ DECISION_SCHEMA_VARIANTS: list[JsonValue] = [
     },
 ]
 
+NO_SOLUTION_FEASIBILITY_SCHEMA: JsonValue = {
+    "if": {
+        "properties": {
+            "solution_present": {"const": False},
+            "evaluation": {"not": {"type": "null"}},
+        }
+    },
+    "then": {
+        "properties": {
+            "evaluation": {
+                "properties": {
+                    "feasibility": {
+                        "properties": {"score": {"maximum": 3}},
+                    }
+                }
+            }
+        }
+    },
+}
+
 
 class StrictAIModel(BaseModel):
     """拒绝额外字段和宽松类型转换的 AI 数据边界。"""
@@ -212,6 +232,7 @@ class EvaluationOutput(NormalizedContent):
             "allOf": [
                 {"oneOf": SOLUTION_SCHEMA_VARIANTS},
                 {"oneOf": DECISION_SCHEMA_VARIANTS},
+                NO_SOLUTION_FEASIBILITY_SCHEMA,
             ]
         },
     )
@@ -237,6 +258,11 @@ class EvaluationOutput(NormalizedContent):
                 raise PydanticCustomError(
                     "accept_has_clarification",
                     "accept 时 clarification_question 必须为 null",
+                )
+            if not self.solution_present and self.evaluation.feasibility.score > 3:
+                raise PydanticCustomError(
+                    "feasibility_too_high_without_solution",
+                    "未提供明确方案时可行性评分不能超过 3",
                 )
         elif self.input_decision is InputDecision.CLARIFY:
             if (

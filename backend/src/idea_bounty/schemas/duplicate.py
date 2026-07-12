@@ -225,12 +225,10 @@ class DuplicateJudgmentOutput(StrictAIModel):
                 if self.matched_internal_id is not None
                 else None
             )
-            candidate_has_solution = (
-                matched_candidate.content.solution_present
-                if matched_candidate is not None
-                else any(candidate.content.solution_present for candidate in comparison.candidates)
-            )
-            if comparison.current.solution_present or candidate_has_solution:
+            # novel 没有匹配候选，不能用整个候选列表的方案状态反向约束模型输出。
+            if matched_candidate is not None and (
+                comparison.current.solution_present or matched_candidate.content.solution_present
+            ):
                 raise PydanticCustomError(
                     "solution_relation_not_applicable_invalid",
                     "not_applicable 只允许双方都没有明确方案",

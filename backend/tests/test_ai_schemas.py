@@ -72,6 +72,10 @@ def invalid_output_cases() -> list[dict[str, object]]:
     reject_with_scores = evaluation_output_data("reject")
     reject_with_scores["evaluation"] = copy.deepcopy(evaluation_output_data()["evaluation"])
     cases.append(reject_with_scores)
+
+    no_solution_high_feasibility = evaluation_output_data()
+    no_solution_high_feasibility["evaluation"]["feasibility"]["score"] = 4  # type: ignore[index]
+    cases.append(no_solution_high_feasibility)
     return cases
 
 
@@ -96,6 +100,21 @@ def test_normalized_content_excludes_decision_and_scores() -> None:
     assert "manipulation_signals" in stored_content
 
 
+def test_explicit_solution_allows_high_feasibility_score() -> None:
+    data = evaluation_output_data()
+    data["solution_present"] = True
+    data["proposed_solution"] = {
+        "value": "由社区志愿者代购并送到老人家中",
+        "source": "explicit",
+    }
+    data["evaluation"]["feasibility"]["score"] = 5  # type: ignore[index]
+
+    output = EvaluationOutput.model_validate_json(json.dumps(data, ensure_ascii=False))
+
+    assert output.evaluation is not None
+    assert output.evaluation.feasibility.score == 5
+
+
 def test_json_schema_exposes_cross_field_and_evidence_constraints() -> None:
     schema = EvaluationOutput.model_json_schema()
     normalized_field_schema = schema["$defs"]["NormalizedField"]
@@ -118,6 +137,7 @@ def test_json_schema_exposes_cross_field_and_evidence_constraints() -> None:
     }
     solution_cases = schema["allOf"][0]["oneOf"]
     decision_cases = schema["allOf"][1]["oneOf"]
+    no_solution_feasibility = schema["allOf"][2]
     assert {case["properties"]["solution_present"]["const"] for case in solution_cases} == {
         False,
         True,
@@ -133,3 +153,6 @@ def test_json_schema_exposes_cross_field_and_evidence_constraints() -> None:
     )
     assert accept_case["properties"]["clarification_question"] == {"type": "null"}
     assert accept_case["properties"]["evaluation"] == {"not": {"type": "null"}}
+    assert no_solution_feasibility["then"]["properties"]["evaluation"]["properties"]["feasibility"][
+        "properties"
+    ]["score"] == {"maximum": 3}

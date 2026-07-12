@@ -7,6 +7,11 @@ from idea_bounty.schemas.ai import EvaluationScores
 MONEY_STEP = Decimal("0.01")
 ZERO_AMOUNT = Decimal("0.00")
 MAX_AMOUNT = Decimal("100.00")
+NOVELTY_AMOUNT_CAPS = {
+    0: ZERO_AMOUNT,
+    1: Decimal("2.00"),
+    2: Decimal("8.00"),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +37,8 @@ def calculate_bounty(
         + scores.feasibility.score * 3
         + scores.novelty.score * 3
     )
-    base_amount = _calculate_base_amount(commercial_score)
+    curve_amount = _calculate_base_amount(commercial_score)
+    base_amount = _apply_novelty_amount_cap(curve_amount, scores.novelty.score)
     final_amount = ZERO_AMOUNT if duplicate_verdict is DuplicateVerdict.DUPLICATE else base_amount
     return BountyCalculation(
         commercial_score=commercial_score,
@@ -48,3 +54,10 @@ def _calculate_base_amount(commercial_score: int) -> Decimal:
     normalized_score = (Decimal(commercial_score) - Decimal(30)) / Decimal(70)
     amount = MAX_AMOUNT * normalized_score**2
     return min(MAX_AMOUNT, amount.quantize(MONEY_STEP, rounding=ROUND_HALF_UP))
+
+
+def _apply_novelty_amount_cap(amount: Decimal, novelty_score: int) -> Decimal:
+    """限制常见痛点或标准方案的最高估值金额。"""
+
+    cap = NOVELTY_AMOUNT_CAPS.get(novelty_score)
+    return amount if cap is None else min(amount, cap)

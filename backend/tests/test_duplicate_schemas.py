@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from idea_bounty.models import ComparisonAspect, DuplicateVerdict
 from idea_bounty.schemas.duplicate import (
     ComparableIdea,
+    DuplicateComparisonInput,
     DuplicateJudgmentOutput,
     validate_duplicate_judgment_json,
 )
@@ -147,6 +148,36 @@ def test_duplicate_judgment_requires_different_when_only_one_side_has_solution()
     data["solution_relation"] = "related"
 
     with pytest.raises(ValidationError, match="必须为 different"):
+        validate_duplicate_judgment_json(
+            json.dumps(data, ensure_ascii=False),
+            case.comparison,
+        )
+
+
+def test_novel_allows_not_applicable_with_mixed_candidate_solutions() -> None:
+    novel_case = PROBE_CASES[6]
+    solution_candidate = PROBE_CASES[1].comparison.candidates[0]
+    comparison = DuplicateComparisonInput(
+        current=novel_case.comparison.current,
+        candidates=[*novel_case.comparison.candidates, solution_candidate],
+    )
+    data = judgment_data(6)
+
+    output = validate_duplicate_judgment_json(
+        json.dumps(data, ensure_ascii=False),
+        comparison,
+    )
+
+    assert output.verdict is DuplicateVerdict.NOVEL
+    assert output.solution_relation.value == "not_applicable"
+
+
+def test_not_applicable_still_rejects_matched_candidate_with_solution() -> None:
+    case = PROBE_CASES[1]
+    data = judgment_data(1)
+    data["solution_relation"] = "not_applicable"
+
+    with pytest.raises(ValidationError, match="双方都没有明确方案"):
         validate_duplicate_judgment_json(
             json.dumps(data, ensure_ascii=False),
             case.comparison,

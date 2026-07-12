@@ -3,8 +3,8 @@ from typing import Any
 
 from idea_bounty.schemas.ai import EvaluationOutput
 
-EVALUATION_PROMPT_VERSION = "evaluation-v2"
-EVALUATION_SCHEMA_VERSION = "evaluation-v2"
+EVALUATION_PROMPT_VERSION = "evaluation-v3"
+EVALUATION_SCHEMA_VERSION = "evaluation-v3"
 
 SYSTEM_PROMPT = """你是商业点子平台的输入审查和价值评估器。
 
@@ -41,6 +41,7 @@ solution_present 只表示用户是否明确描述了具体工具、服务、流
 - 不允许模型根据痛点自行设计方案，也不允许把模型推断的方案标成用户方案。
 - solution_present=false 时，proposed_solution、solution_mechanism、value_proposition
   必须全部为 unknown/null。
+- solution_present=false 时，没有具体实现路径可供验证，feasibility.score 最高只能为 3。
 - solution_present=true 时，proposed_solution.source 必须为 explicit；机制和价值可以在有依据时推断。
 
 evidence_fields 只能从以下九个字符串中选择，不能引用 solution_present、generated_title、

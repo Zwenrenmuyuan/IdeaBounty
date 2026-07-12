@@ -23,6 +23,7 @@ def test_duplicate_payload_contains_schema_matrix_and_allowed_ids() -> None:
     assert "同一流程和根因" in system_prompt
     assert "不得编造候选 ID" in system_prompt
     assert "只有一方存在明确方案时" in system_prompt
+    assert "novel 没有匹配候选" in system_prompt
     assert "101, 102" in system_prompt
     assert '"DuplicateVerdict"' in system_prompt
 
@@ -43,5 +44,5 @@ def test_duplicate_payload_contains_schema_matrix_and_allowed_ids() -> None:
 
 
 def test_duplicate_prompt_and_schema_versions_are_fixed() -> None:
-    assert DUPLICATE_PROMPT_VERSION == "duplicate-evaluation-v1"
-    assert DUPLICATE_SCHEMA_VERSION == "duplicate-evaluation-v1"
+    assert DUPLICATE_PROMPT_VERSION == "duplicate-evaluation-v2"
+    assert DUPLICATE_SCHEMA_VERSION == "duplicate-evaluation-v2"

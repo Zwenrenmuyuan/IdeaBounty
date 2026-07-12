@@ -82,6 +82,7 @@ def test_client_sends_json_mode_schema_and_untrusted_user_message() -> None:
     assert "必须同时包含 prompt_injection" in payload["messages"][0]["content"]
     assert 'source="unknown" 时填写 value' in payload["messages"][0]["content"]
     assert "只有目标、愿望、期望结果" in payload["messages"][0]["content"]
+    assert "feasibility.score 最高只能为 3" in payload["messages"][0]["content"]
     assert "target_audience, pain_point, context" in payload["messages"][0]["content"]
     assert '["pain_point","desired_outcome"]' in payload["messages"][0]["content"]
     assert (

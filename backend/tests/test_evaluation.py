@@ -66,8 +66,8 @@ def test_evaluation_decision_advances_expected_state(
     assert stored_idea is not None
     assert stored_idea.input_decision == decision
     assert stored_idea.evaluation_model == "fake-evaluation-model"
-    assert stored_idea.evaluation_prompt_version == "evaluation-v2"
-    assert stored_idea.evaluation_schema_version == "evaluation-v2"
+    assert stored_idea.evaluation_prompt_version == "evaluation-v3"
+    assert stored_idea.evaluation_schema_version == "evaluation-v3"
     assert stored_idea.normalized_content is not None
     if decision == InputDecision.ACCEPT.value:
         assert response.json()["evaluation"] is not None

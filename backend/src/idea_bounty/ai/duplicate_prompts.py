@@ -3,8 +3,8 @@ from typing import Any
 
 from idea_bounty.schemas.duplicate import DuplicateComparisonInput, DuplicateJudgmentOutput
 
-DUPLICATE_PROMPT_VERSION = "duplicate-evaluation-v1"
-DUPLICATE_SCHEMA_VERSION = "duplicate-evaluation-v1"
+DUPLICATE_PROMPT_VERSION = "duplicate-evaluation-v2"
+DUPLICATE_SCHEMA_VERSION = "duplicate-evaluation-v2"
 
 DUPLICATE_SYSTEM_PROMPT = """你是商业点子平台的查重判定器。
 
@@ -24,7 +24,8 @@ DUPLICATE_SYSTEM_PROMPT = """你是商业点子平台的查重判定器。
    - 痛点不同：novel。
 
 目标用户名称变化不等于新痛点；只有场景、约束或付费方发生实质变化时才影响结论。
-solution_relation=not_applicable 只允许当前点子和对应候选都没有明确方案。
+duplicate/related 存在匹配候选时，solution_relation=not_applicable 只允许双方都没有明确方案。
+novel 没有匹配候选，不要根据候选列表中任意点子的方案状态改变结论；可以使用 not_applicable。
 只有一方存在明确方案时，solution_relation 必须为 different；不能使用 related。
 duplicate 和 related 必须返回候选中的 matched_internal_id；novel 必须返回 null。
 same_aspects 和 different_aspects 只能使用 Schema 声明的字段名，不能重复或重叠。
