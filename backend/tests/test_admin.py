@@ -111,6 +111,10 @@ def test_reject_sets_zero_without_payout(
     assert response.json()["idea"]["final_amount"] == 0.0
     assert response.json()["idea"]["payout_status"] == "not_applicable"
     assert response.json()["idea"]["payout"] is None
+    owner_detail = client.get(f"/api/me/ideas/{public_id}")
+    assert owner_detail.status_code == 200
+    assert owner_detail.json()["admin_action"] == "rejected"
+    assert owner_detail.json()["admin_reason"] == "内容不适合收录"
     assert db_session.scalar(select(SimulatedPayout)) is None
 
 

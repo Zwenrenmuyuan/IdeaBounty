@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { getPublicSummary } from "@/api/ideas";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiError } from "@/types";
@@ -92,18 +93,21 @@ export function IdeaSummaryPage() {
       <div className="mb-4">
         <Link
           to="/ideas"
-          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
-          ← 返回列表
+          <ArrowLeft className="size-4" />
+          返回列表
         </Link>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-amber-400 to-primary/70" />
         <CardHeader>
           <CardTitle className="text-lg">
             {summary.generated_title ?? "未公开"}
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="flex items-center gap-1.5">
+            <ShieldCheck className="size-4 text-emerald-600" />
             脱敏摘要 · {formatDate(summary.created_date)}
           </CardDescription>
         </CardHeader>

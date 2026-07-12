@@ -5,6 +5,7 @@ import { ApiError } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthLayout } from "@/components/auth-layout";
 import {
   Card,
   CardContent,
@@ -76,10 +77,10 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md">
+    <AuthLayout>
+      <Card className="border-white/80">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">注册账号</CardTitle>
+          <CardTitle className="text-2xl tracking-tight">创建账号</CardTitle>
           <CardDescription>
             注册后即可提交点子并获取 AI 评估的红包
           </CardDescription>
@@ -152,13 +153,13 @@ export function RegisterPage() {
             </Button>
             <p className="text-sm text-muted-foreground">
               已有账号？{" "}
-              <Link to="/login" className="text-primary underline-offset-4 hover:underline">
+              <Link to="/login" className="font-medium text-primary underline-offset-4 hover:underline">
                 去登录
               </Link>
             </p>
           </CardFooter>
         </form>
       </Card>
-    </div>
+    </AuthLayout>
   );
 }

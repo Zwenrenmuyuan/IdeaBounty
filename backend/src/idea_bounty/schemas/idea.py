@@ -101,6 +101,7 @@ class IdeaResponse(IdeaSummaryResponse):
     duplicate_deduction: float | None
     final_amount: float | None
     admin_action: AdminAction | None
+    admin_reason: str | None
     payout_status: Literal["not_ready", "awaiting_admin", "confirmed", "not_applicable"]
     payout: SimulatedPayoutResponse | None
 
@@ -132,6 +133,7 @@ class IdeaResponse(IdeaSummaryResponse):
             ),
             final_amount=float(idea.final_amount) if idea.final_amount is not None else None,
             admin_action=AdminAction(idea.admin_action) if idea.admin_action is not None else None,
+            admin_reason=idea.admin_reason,
             payout_status=get_payout_status(idea),
             payout=(
                 SimulatedPayoutResponse(

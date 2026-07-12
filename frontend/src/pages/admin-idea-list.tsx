@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight, BarChart3, Coins, FileCheck2 } from "lucide-react";
 import {
   ADMIN_PAGE_SIZE,
   getAdminSummary,
@@ -34,6 +35,8 @@ const SUMMARY_ITEMS: {
   { key: "confirmed_payout_count", label: "已确认笔数" },
   { key: "simulated_payout_total", label: "模拟打款总额", amount: true },
 ];
+
+const SUMMARY_ICONS = [BarChart3, FileCheck2, BarChart3, Coins, FileCheck2, Coins];
 
 export function AdminIdeaListPage() {
   const { clearAuth } = useAuth();
@@ -94,8 +97,9 @@ export function AdminIdeaListPage() {
 
   return (
     <AppLayout>
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold">管理后台</h1>
+      <div className="mb-7">
+        <p className="mb-1 text-sm font-medium text-amber-700">运营工作台</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">管理后台</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           查看投稿评估结果并完成一次性最终处理。
         </p>
@@ -115,17 +119,44 @@ export function AdminIdeaListPage() {
 
       {!loading && !error && summary && (
         <>
-          <section aria-label="后台汇总" className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {SUMMARY_ITEMS.map(({ key, label, amount }) => (
-              <Card key={key}>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-xl font-semibold">
-                    {amount ? formatAmount(summary[key]) : summary[key]}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+          <section
+            aria-label="后台汇总"
+            className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3"
+          >
+            {SUMMARY_ITEMS.map(({ key, label, amount }, index) => {
+              const Icon = SUMMARY_ICONS[index];
+              return (
+                <Card
+                  key={key}
+                  className={
+                    amount ? "border-amber-200/80 bg-reward-soft/55" : undefined
+                  }
+                >
+                  <CardContent className="flex items-start justify-between gap-3 p-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <p
+                        className={
+                          amount
+                            ? "mt-1 text-xl font-semibold text-amber-700"
+                            : "mt-1 text-xl font-semibold"
+                        }
+                      >
+                        {amount ? formatAmount(summary[key]) : summary[key]}
+                      </p>
+                    </div>
+                    <span
+                      className={
+                        "flex size-8 items-center justify-center rounded-xl bg-white/70 " +
+                        "text-muted-foreground shadow-sm"
+                      }
+                    >
+                      <Icon className="size-4" />
+                    </span>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </section>
 
           <section aria-labelledby="admin-ideas-heading">
@@ -147,7 +178,12 @@ export function AdminIdeaListPage() {
                     to={`/admin/ideas/${idea.public_id}`}
                     className="block"
                   >
-                    <Card className="transition-colors hover:bg-accent/50">
+                    <Card
+                      className={
+                        "group transition-all hover:-translate-y-0.5 hover:border-primary/20 " +
+                        "hover:shadow-[0_12px_32px_rgba(30,41,59,0.09)]"
+                      }
+                    >
                       <CardContent className="space-y-3 p-4">
                         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
@@ -177,6 +213,12 @@ export function AdminIdeaListPage() {
                           <span className="font-medium">
                             {formatAmount(idea.final_amount)}
                           </span>
+                          <ArrowRight
+                            className={
+                              "ml-auto size-4 text-muted-foreground transition-transform " +
+                              "group-hover:translate-x-0.5 group-hover:text-primary"
+                            }
+                          />
                         </div>
                       </CardContent>
                     </Card>

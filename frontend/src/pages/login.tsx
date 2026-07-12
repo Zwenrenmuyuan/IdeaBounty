@@ -5,6 +5,7 @@ import { ApiError } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthLayout } from "@/components/auth-layout";
 import {
   Card,
   CardContent,
@@ -47,11 +48,11 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md">
+    <AuthLayout>
+      <Card className="border-white/80">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">登录</CardTitle>
-          <CardDescription>登录后查看你的点子和红包</CardDescription>
+          <CardTitle className="text-2xl tracking-tight">欢迎回来</CardTitle>
+          <CardDescription>登录后查看你的点子、评估结果和红包进度</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
@@ -91,13 +92,13 @@ export function LoginPage() {
             </Button>
             <p className="text-sm text-muted-foreground">
               还没有账号？{" "}
-              <Link to="/register" className="text-primary underline-offset-4 hover:underline">
+              <Link to="/register" className="font-medium text-primary underline-offset-4 hover:underline">
                 去注册
               </Link>
             </p>
           </CardFooter>
         </form>
       </Card>
-    </div>
+    </AuthLayout>
   );
 }

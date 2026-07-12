@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Coins, Sparkles } from "lucide-react";
 import { getAdminIdea, processAdminIdea } from "@/api/admin";
 import { AppLayout } from "@/components/app-layout";
 import {
@@ -19,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ScoreMeter } from "@/components/score-meter";
 import { useAuth } from "@/hooks/use-auth";
 import {
   confidenceLabel,
@@ -152,8 +154,12 @@ export function AdminIdeaDetailPage() {
   if (error || !detail) {
     return (
       <AppLayout>
-        <Link to="/admin" className="text-sm text-muted-foreground hover:text-foreground">
-          ← 返回管理后台
+        <Link
+          to="/admin"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          返回管理后台
         </Link>
         <div role="alert" className="mt-4 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error ?? "点子不存在"}
@@ -176,7 +182,8 @@ export function AdminIdeaDetailPage() {
         </Link>
       </div>
 
-      <Card className="mb-4">
+      <Card className="mb-5 overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-amber-400 via-amber-300 to-primary/70" />
         <CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
@@ -211,9 +218,11 @@ export function AdminIdeaDetailPage() {
               <dt className="text-muted-foreground">规则金额</dt>
               <dd>{formatAmount(idea.base_amount)}</dd>
             </div>
-            <div>
+            <div className="rounded-xl bg-reward-soft p-3">
               <dt className="text-muted-foreground">当前金额</dt>
-              <dd className="font-semibold">{formatAmount(idea.final_amount)}</dd>
+              <dd className="mt-1 text-lg font-semibold text-amber-700">
+                {formatAmount(idea.final_amount)}
+              </dd>
             </div>
           </dl>
         </CardContent>
@@ -230,17 +239,23 @@ export function AdminIdeaDetailPage() {
 
       {idea.evaluation && (
         <Card className="mb-4">
-          <CardHeader><CardTitle className="text-base">五维评分</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="size-4 text-amber-600" />
+              五维评分
+            </CardTitle>
+          </CardHeader>
           <CardContent className="space-y-4">
             {DIMENSION_KEYS.map((key) => {
               const dimension = idea.evaluation![key];
               return (
-                <div key={key} className="space-y-1">
+                <div key={key} className="rounded-xl border border-border/70 bg-muted/35 p-3.5">
                   <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="font-medium">{dimensionLabel(key)}</span>
-                    <span>{dimension.score} / 5</span>
+                    <span className="font-semibold text-amber-700">{dimension.score} / 5</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">{dimension.reason}</p>
+                  <ScoreMeter score={dimension.score} className="my-2.5" />
+                  <p className="text-sm leading-6 text-muted-foreground">{dimension.reason}</p>
                   <p className="text-xs text-muted-foreground">
                     置信度：{confidenceLabel(dimension.confidence)}；证据：
                     {dimension.evidence_fields.map(fieldLabel).join("、")}
@@ -276,9 +291,12 @@ export function AdminIdeaDetailPage() {
       )}
 
       {canProcess ? (
-        <Card className="mb-4">
+        <Card className="mb-4 border-amber-200/80 bg-gradient-to-br from-white to-reward-soft/60">
           <CardHeader>
-            <CardTitle className="text-base">最终处理</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Coins className="size-4 text-amber-700" />
+              最终处理
+            </CardTitle>
             <CardDescription>每条投稿只能处理一次，提交后不可修改。</CardDescription>
           </CardHeader>
           <CardContent>
@@ -295,7 +313,17 @@ export function AdminIdeaDetailPage() {
                   ["adjusted", "调整后确认"],
                   ["rejected", "驳回投稿"],
                 ] as const).map(([value, label]) => (
-                  <label key={value} className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm">
+                  <label
+                    key={value}
+                    className={
+                      "flex cursor-pointer items-center gap-2 rounded-xl border p-3 " +
+                      `text-sm transition-colors ${
+                        choice === value
+                          ? "border-primary/40 bg-primary/5 text-primary"
+                          : "bg-white/60 hover:bg-white"
+                      }`
+                    }
+                  >
                     <input
                       type="radio"
                       name="admin-action"

@@ -105,6 +105,7 @@ export interface IdeaResponse extends IdeaSummary {
   duplicate_deduction: number | null;
   final_amount: number | null;
   admin_action: AdminAction | null;
+  admin_reason: string | null;
   payout_status: PayoutStatus;
   payout: SimulatedPayout | null;
 }

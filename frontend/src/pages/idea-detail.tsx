@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Coins, RefreshCw, Sparkles } from "lucide-react";
 import { getIdea, retryIdea } from "@/api/ideas";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiError } from "@/types";
@@ -23,6 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ScoreMeter } from "@/components/score-meter";
 import {
   confidenceLabel,
   dimensionLabel,
@@ -156,20 +158,22 @@ export function IdeaDetailPage() {
 
   return (
     <AppLayout>
-      <div className="mb-4">
+      <div className="mb-5">
         <Link
           to="/ideas"
-          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
-          ← 返回列表
+          <ArrowLeft className="size-4" />
+          返回列表
         </Link>
       </div>
 
       {/* 基础信息 */}
-      <Card className="mb-4">
+      <Card className="mb-5 overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-amber-400 via-amber-300 to-primary/70" />
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
-            <CardTitle className="text-lg">
+            <CardTitle className="text-xl leading-snug">
               {idea.generated_title ?? truncateContent(idea.raw_content)}
             </CardTitle>
             <IdeaStatusBadge status={idea.processing_status} />
@@ -211,6 +215,7 @@ export function IdeaDetailPage() {
               AI 正在处理中，请稍后刷新查看结果。
             </p>
             <Button variant="outline" size="sm" onClick={handleManualRefresh}>
+              <RefreshCw />
               刷新
             </Button>
           </CardContent>
@@ -248,25 +253,29 @@ export function IdeaDetailPage() {
 
       {/* 五维评分 */}
       {idea.evaluation && (
-        <Card className="mb-4">
+        <Card className="mb-5">
           <CardHeader>
-            <CardTitle className="text-base">五维评分</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="size-4 text-amber-600" />
+              五维评分
+            </CardTitle>
             <CardDescription>AI 对商业价值的五个维度评估</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {DIMENSION_KEYS.map((key) => {
               const dim = idea.evaluation![key] as DimensionScore;
               return (
-                <div key={key} className="space-y-1">
+                <div key={key} className="rounded-xl border border-border/70 bg-muted/35 p-3.5">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">
                       {dimensionLabel(key)}
                     </span>
-                    <span className="text-sm">
+                    <span className="font-semibold text-amber-700">
                       {dim.score} / 5
                     </span>
                   </div>
-                  <p className="text-sm text-muted-foreground">{dim.reason}</p>
+                  <ScoreMeter score={dim.score} className="my-2.5" />
+                  <p className="text-sm leading-6 text-muted-foreground">{dim.reason}</p>
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                     <span>置信度：{confidenceLabel(dim.confidence)}</span>
                     <span>
@@ -321,12 +330,17 @@ export function IdeaDetailPage() {
 
       {/* 红包与管理员状态 */}
       {idea.processing_status === "completed" && (
-        <Card className="mb-4">
+        <Card className="mb-5 overflow-hidden border-amber-200/80 bg-gradient-to-br from-white to-reward-soft/70">
           <CardHeader>
-            <CardTitle className="text-base">红包与管理员状态</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="flex size-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <Coins className="size-4" />
+              </span>
+              红包与管理员状态
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+            <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-muted-foreground">商业评分</dt>
                 <dd>
@@ -343,9 +357,9 @@ export function IdeaDetailPage() {
                 <dt className="text-muted-foreground">重复扣减</dt>
                 <dd>{formatAmount(idea.duplicate_deduction)}</dd>
               </div>
-              <div>
+              <div className="rounded-xl bg-white/70 p-3 ring-1 ring-amber-100">
                 <dt className="text-muted-foreground">最终金额</dt>
-                <dd className="font-semibold">
+                <dd className="mt-1 text-xl font-semibold text-amber-700">
                   {formatAmount(idea.final_amount)}
                 </dd>
               </div>
@@ -362,6 +376,20 @@ export function IdeaDetailPage() {
                 </dd>
               </div>
             </dl>
+            {idea.admin_reason && (
+              <div
+                className={
+                  idea.admin_action === "rejected"
+                    ? "rounded-xl border border-destructive/15 bg-destructive/10 p-3.5"
+                    : "rounded-xl border border-primary/10 bg-primary/5 p-3.5"
+                }
+              >
+                <p className="text-sm font-medium">管理员说明</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                  {idea.admin_reason}
+                </p>
+              </div>
+            )}
             {idea.payout && (
               <div className="space-y-1 border-t pt-3 text-sm">
                 <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">

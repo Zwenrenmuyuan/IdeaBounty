@@ -70,6 +70,7 @@ def test_create_idea_preserves_raw_content_and_hides_internal_fields(
         "duplicate_deduction",
         "final_amount",
         "admin_action",
+        "admin_reason",
         "payout_status",
         "payout",
     }
