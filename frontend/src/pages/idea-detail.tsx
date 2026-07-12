@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Coins, RefreshCw, Sparkles } from "lucide-react";
-import { getIdea, retryIdea } from "@/api/ideas";
+import { ArrowLeft, Coins, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { deleteIdea, getIdea, retryIdea, supplementIdea } from "@/api/ideas";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiError } from "@/types";
 import type {
@@ -11,7 +11,7 @@ import type {
 } from "@/types";
 import { AppLayout } from "@/components/app-layout";
 import {
-  IdeaStatusBadge,
+  IdeaDisplayStatusBadge,
   InputDecisionBadge,
   AdminActionBadge,
   PayoutStatusBadge,
@@ -24,6 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { ScoreMeter } from "@/components/score-meter";
 import {
   confidenceLabel,
@@ -59,6 +60,11 @@ export function IdeaDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [supplementContent, setSupplementContent] = useState("");
+  const [supplementing, setSupplementing] = useState(false);
+  const [supplementError, setSupplementError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchIdea = useCallback(
     (signal?: AbortSignal) => {
@@ -66,7 +72,12 @@ export function IdeaDetailPage() {
       setLoading(true);
       setError(null);
       getIdea(publicId, signal)
-        .then((data) => setIdea(data))
+        .then((data) => {
+          setIdea(data);
+          if (data.input_decision === "clarify") {
+            setSupplementContent(data.raw_content);
+          }
+        })
         .catch((err) => {
           if (err instanceof DOMException && err.name === "AbortError") return;
           if (err instanceof ApiError && err.status === 401) {
@@ -122,6 +133,55 @@ export function IdeaDetailPage() {
     fetchIdea();
   }
 
+  async function handleSupplement() {
+    if (!publicId) return;
+    setSupplementing(true);
+    setSupplementError(null);
+    try {
+      const updated = await supplementIdea(publicId, {
+        raw_content: supplementContent,
+      });
+      setIdea(updated);
+      if (updated.input_decision === "clarify") {
+        setSupplementContent(updated.raw_content);
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        clearAuth();
+        navigate("/login", { replace: true });
+        return;
+      }
+      setSupplementError(
+        err instanceof ApiError ? err.message : "提交补充失败，请稍后重试",
+      );
+    } finally {
+      setSupplementing(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!publicId || !window.confirm("删除后无法恢复，确认删除这条投稿吗？")) {
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteIdea(publicId);
+      navigate("/ideas", { replace: true });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        clearAuth();
+        navigate("/login", { replace: true });
+        return;
+      }
+      setDeleteError(
+        err instanceof ApiError ? err.message : "删除失败，请稍后重试",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <AppLayout>
@@ -155,6 +215,11 @@ export function IdeaDetailPage() {
   const showRetry =
     idea.processing_status === "failed" && idea.retry_count < 3;
   const processing = isProcessing(idea.processing_status);
+  const canDelete =
+    idea.processing_status === "failed" ||
+    (idea.processing_status === "completed" &&
+      (idea.input_decision === "clarify" ||
+        idea.input_decision === "reject"));
 
   return (
     <AppLayout>
@@ -176,7 +241,10 @@ export function IdeaDetailPage() {
             <CardTitle className="text-xl leading-snug">
               {idea.generated_title ?? truncateContent(idea.raw_content)}
             </CardTitle>
-            <IdeaStatusBadge status={idea.processing_status} />
+            <IdeaDisplayStatusBadge
+              status={idea.processing_status}
+              decision={idea.input_decision}
+            />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -238,12 +306,45 @@ export function IdeaDetailPage() {
               </p>
             )}
             {idea.input_decision === "clarify" && idea.clarification_question && (
-              <div className="rounded-md bg-amber-50 px-4 py-3">
-                <p className="text-sm text-amber-700">
-                  {idea.clarification_question}
-                </p>
-                <Button variant="outline" size="sm" asChild className="mt-2">
-                  <Link to="/ideas/new">重新提交点子</Link>
+              <div className="space-y-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-4">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                    请补充以下信息
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-amber-800">
+                    {idea.clarification_question}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="supplement-content" className="text-sm font-medium">
+                    完善投稿内容
+                  </label>
+                  <Textarea
+                    id="supplement-content"
+                    value={supplementContent}
+                    onChange={(event) => setSupplementContent(event.target.value)}
+                    maxLength={2000}
+                    rows={7}
+                    disabled={supplementing}
+                  />
+                  <p className="text-right text-xs text-muted-foreground">
+                    {supplementContent.length} / 2000
+                  </p>
+                </div>
+                {supplementError && (
+                  <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {supplementError}
+                  </div>
+                )}
+                <Button
+                  onClick={handleSupplement}
+                  disabled={
+                    supplementing ||
+                    supplementContent.trim().length < 8 ||
+                    supplementContent.length > 2000
+                  }
+                >
+                  {supplementing ? "重新评估中..." : "提交补充并重新评估"}
                 </Button>
               </div>
             )}
@@ -329,17 +430,18 @@ export function IdeaDetailPage() {
       )}
 
       {/* 红包与管理员状态 */}
-      {idea.processing_status === "completed" && (
-        <Card className="mb-5 overflow-hidden border-amber-200/80 bg-gradient-to-br from-white to-reward-soft/70">
-          <CardHeader>
+      {idea.processing_status === "completed" &&
+        idea.input_decision === "accept" && (
+          <Card className="mb-5 overflow-hidden border-amber-200/80 bg-gradient-to-br from-white to-reward-soft/70">
+            <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <span className="flex size-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
                 <Coins className="size-4" />
               </span>
               红包与管理员状态
             </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+            </CardHeader>
+            <CardContent className="space-y-3">
             <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-muted-foreground">商业评分</dt>
@@ -408,9 +510,9 @@ export function IdeaDetailPage() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
       {/* 重试 */}
       {showRetry && (
@@ -436,6 +538,29 @@ export function IdeaDetailPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {canDelete && (
+        <div className="flex flex-col items-start gap-2 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium">不再保留这条投稿？</p>
+            <p className="text-xs text-muted-foreground">
+              尚未形成有效评估结果的投稿可以永久删除。
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDelete}
+            disabled={deleting || supplementing}
+          >
+            <Trash2 />
+            {deleting ? "删除中..." : "删除投稿"}
+          </Button>
+          {deleteError && (
+            <p className="text-sm text-destructive">{deleteError}</p>
+          )}
+        </div>
       )}
     </AppLayout>
   );

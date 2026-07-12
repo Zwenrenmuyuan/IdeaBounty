@@ -3,6 +3,7 @@ import type {
   IdeaCreateRequest,
   IdeaListResponse,
   IdeaResponse,
+  IdeaSupplementRequest,
   PublicIdeaSummary,
 } from "@/types";
 
@@ -46,6 +47,25 @@ export function retryIdea(
     undefined,
     signal,
   );
+}
+
+export function supplementIdea(
+  publicId: string,
+  payload: IdeaSupplementRequest,
+  signal?: AbortSignal,
+): Promise<IdeaResponse> {
+  return apiClient.post<IdeaResponse>(
+    `/me/ideas/${publicId}/supplement`,
+    payload,
+    signal,
+  );
+}
+
+export function deleteIdea(
+  publicId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  return apiClient.delete<void>(`/me/ideas/${publicId}`, signal);
 }
 
 export function getPublicSummary(

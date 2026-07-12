@@ -10,8 +10,9 @@ from httpx2 import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from idea_bounty.models import Idea, IdeaProcessingStatus, InputDecision
-from tests.ai_fakes import FakeEvaluationProvider
+from idea_bounty.ai import EvaluationProviderError
+from idea_bounty.models import FailureCode, Idea, IdeaProcessingStatus, InputDecision
+from tests.ai_fakes import FakeEvaluationProvider, make_evaluation_output
 
 PASSWORD = "correct horse battery staple"
 
@@ -238,6 +239,8 @@ def test_different_users_can_reuse_submission_key(
         ),
         ("get", "/api/me/ideas", None),
         ("get", f"/api/me/ideas/{uuid4()}", None),
+        ("post", f"/api/me/ideas/{uuid4()}/supplement", {"raw_content": "补充后的完整投稿内容"}),
+        ("delete", f"/api/me/ideas/{uuid4()}", None),
     ],
 )
 def test_idea_routes_require_authentication(
@@ -317,6 +320,137 @@ def test_get_owned_idea_returns_detail(client: TestClient) -> None:
     assert response.json() == create_response.json()
 
 
+def test_supplement_clarify_reuses_record_and_reruns_pipeline(
+    client: TestClient,
+    db_session: Session,
+    evaluation_provider: FakeEvaluationProvider,
+) -> None:
+    evaluation_provider.outcomes = [
+        make_evaluation_output("clarify"),
+        make_evaluation_output("accept"),
+    ]
+    _register(client, "alice")
+    _, create_response = _submit(client, "我经常忘记事情，但还没有描述具体场景")
+    public_id = create_response.json()["public_id"]
+    original_hash = db_session.scalar(select(Idea.content_hash))
+    supplemented_content = "我每周工作时会忘记客户约定，导致反复确认和错过会议"
+
+    response = client.post(
+        f"/api/me/ideas/{public_id}/supplement",
+        json={"raw_content": supplemented_content},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["public_id"] == public_id
+    assert response.json()["raw_content"] == supplemented_content
+    assert response.json()["input_decision"] == "accept"
+    assert response.json()["processing_status"] == "completed"
+    assert response.json()["retry_count"] == 0
+    assert evaluation_provider.raw_contents == [
+        "我经常忘记事情，但还没有描述具体场景",
+        supplemented_content,
+    ]
+    assert db_session.scalar(select(func.count()).select_from(Idea)) == 1
+    db_session.expire_all()
+    stored_idea = db_session.scalar(select(Idea))
+    assert stored_idea is not None
+    assert stored_idea.content_hash != original_hash
+    assert stored_idea.public_id == UUID(public_id)
+
+
+def test_supplement_rejects_invalid_body(
+    client: TestClient, evaluation_provider: FakeEvaluationProvider
+) -> None:
+    evaluation_provider.outcomes = [make_evaluation_output("clarify")]
+    _register(client, "alice")
+    _, create_response = _submit(client, "这是一个需要继续补充具体场景的投稿内容")
+
+    response = client.post(
+        f"/api/me/ideas/{create_response.json()['public_id']}/supplement",
+        json={"raw_content": "太短", "user_id": 99},
+    )
+
+    assert response.status_code == 422
+
+
+def test_supplement_only_allows_owned_clarify_idea(
+    app: FastAPI,
+    client: TestClient,
+) -> None:
+    _register(client, "alice")
+    _, create_response = _submit(client, "这是已经通过门禁并完成处理的有效投稿内容")
+    public_id = create_response.json()["public_id"]
+
+    own_response = client.post(
+        f"/api/me/ideas/{public_id}/supplement",
+        json={"raw_content": "试图修改已经形成有效结果的投稿内容"},
+    )
+    with TestClient(app) as second_client:
+        _register(second_client, "bob")
+        other_response = second_client.post(
+            f"/api/me/ideas/{public_id}/supplement",
+            json={"raw_content": "其他用户不能补充这条投稿的内容"},
+        )
+
+    assert own_response.status_code == 409
+    assert other_response.status_code == 404
+
+
+@pytest.mark.parametrize("decision", ["clarify", "reject"])
+def test_delete_allows_incomplete_terminal_ideas(
+    client: TestClient,
+    db_session: Session,
+    evaluation_provider: FakeEvaluationProvider,
+    decision: str,
+) -> None:
+    evaluation_provider.outcomes = [make_evaluation_output(decision)]
+    _register(client, "alice")
+    _, create_response = _submit(client, f"这是将被判定为 {decision} 的测试投稿")
+
+    response = client.delete(f"/api/me/ideas/{create_response.json()['public_id']}")
+
+    assert response.status_code == 204
+    assert db_session.scalar(select(func.count()).select_from(Idea)) == 0
+
+
+def test_delete_allows_failed_idea(
+    client: TestClient,
+    db_session: Session,
+    evaluation_provider: FakeEvaluationProvider,
+) -> None:
+    evaluation_provider.outcomes = [
+        EvaluationProviderError(
+            FailureCode.PROVIDER_TIMEOUT,
+            "模型请求超时",
+            retryable=True,
+        )
+    ]
+    _register(client, "alice")
+    _, create_response = _submit(client, "这是一次模型服务失败后允许删除的投稿")
+
+    response = client.delete(f"/api/me/ideas/{create_response.json()['public_id']}")
+
+    assert response.status_code == 204
+    assert db_session.scalar(select(func.count()).select_from(Idea)) == 0
+
+
+def test_delete_rejects_completed_accept_and_hides_ownership(
+    app: FastAPI,
+    client: TestClient,
+) -> None:
+    _register(client, "alice")
+    _, create_response = _submit(client, "这是已经形成有效结果且不能删除的投稿内容")
+    public_id = create_response.json()["public_id"]
+
+    own_response = client.delete(f"/api/me/ideas/{public_id}")
+    with TestClient(app) as second_client:
+        _register(second_client, "bob")
+        other_response = second_client.delete(f"/api/me/ideas/{public_id}")
+
+    assert own_response.status_code == 409
+    assert other_response.status_code == 404
+
+
 def test_idea_routes_are_documented(client: TestClient) -> None:
     paths = client.get("/openapi.json").json()["paths"]
 
@@ -324,4 +458,6 @@ def test_idea_routes_are_documented(client: TestClient) -> None:
     assert {"200", "201", "409", "422"} <= set(create_responses)
     assert "get" in paths["/api/me/ideas"]
     assert "get" in paths["/api/me/ideas/{public_id}"]
+    assert "delete" in paths["/api/me/ideas/{public_id}"]
     assert "post" in paths["/api/me/ideas/{public_id}/retry"]
+    assert "post" in paths["/api/me/ideas/{public_id}/supplement"]

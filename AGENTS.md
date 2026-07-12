@@ -35,7 +35,7 @@ Use Python 3.12, four-space indentation, and 100-character lines; Ruff controls 
 
 ## Testing Guidelines
 
-Use pytest and FastAPI TestClient. Name files `test_<feature>.py` and tests `test_<expected_behavior>`. Database fixtures reject names without `_test`; never target `idea_bounty`. Cover validation, constraints, migrations, authorization, idempotency and pipeline transitions. Automated AI and Embedding calls must use fakes or HTTP Mocks. Frontend changes must pass `pnpm lint` and `pnpm build`; manually check affected desktop and mobile layouts until browser tests are added.
+Use pytest and FastAPI TestClient. Name files `test_<feature>.py` and tests `test_<expected_behavior>`. Database fixtures reject names without `_test`; never target `idea_bounty`. Cover validation, constraints, migrations, authorization, idempotency and pipeline transitions, including in-place clarification, deletion guards, and the administrator review queue. Automated AI and Embedding calls must use fakes or HTTP Mocks. Frontend changes must pass `pnpm lint` and `pnpm build`; manually check affected desktop and mobile layouts until browser tests are added.
 
 ## Database & Migration Rules
 

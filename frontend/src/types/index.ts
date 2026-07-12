@@ -53,6 +53,10 @@ export interface IdeaCreateRequest {
   raw_content: string;
 }
 
+export interface IdeaSupplementRequest {
+  raw_content: string;
+}
+
 export interface DimensionScore {
   score: number;
   reason: string;

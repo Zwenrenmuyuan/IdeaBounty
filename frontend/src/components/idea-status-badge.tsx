@@ -36,6 +36,25 @@ export function IdeaStatusBadge({
   );
 }
 
+export function IdeaDisplayStatusBadge({
+  status,
+  decision,
+}: {
+  status: IdeaProcessingStatus;
+  decision: InputDecision | null;
+}) {
+  if (status === "completed" && decision === "clarify") {
+    return <Badge variant="warning">待补充</Badge>;
+  }
+  if (status === "completed" && decision === "reject") {
+    return <Badge variant="destructive">未通过</Badge>;
+  }
+  if (status === "completed" && decision === "accept") {
+    return <Badge variant="success">评估完成</Badge>;
+  }
+  return <IdeaStatusBadge status={status} />;
+}
+
 export function InputDecisionBadge({
   decision,
 }: {

@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ApiError } from "@/types";
 import type { IdeaSummary } from "@/types";
 import { AppLayout } from "@/components/app-layout";
-import { IdeaStatusBadge, InputDecisionBadge } from "@/components/idea-status-badge";
+import { IdeaDisplayStatusBadge } from "@/components/idea-status-badge";
 import {
   Card,
   CardContent,
@@ -154,10 +154,10 @@ export function IdeaListPage() {
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                    <IdeaStatusBadge status={idea.processing_status} />
-                    {idea.input_decision && (
-                      <InputDecisionBadge decision={idea.input_decision} />
-                    )}
+                    <IdeaDisplayStatusBadge
+                      status={idea.processing_status}
+                      decision={idea.input_decision}
+                    />
                     <span>{formatDateTime(idea.created_at)}</span>
                   </div>
                   </div>

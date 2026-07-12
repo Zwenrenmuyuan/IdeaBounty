@@ -15,12 +15,11 @@ if TYPE_CHECKING:
     from idea_bounty.models import Idea
 
 
-class IdeaCreateRequest(BaseModel):
-    """创建点子所需的客户端输入。"""
+class IdeaContentRequest(BaseModel):
+    """创建或补充点子时共用的内容输入。"""
 
     model_config = ConfigDict(extra="forbid")
 
-    submission_key: UUID4
     raw_content: str = Field(max_length=2000)
 
     @field_validator("raw_content")
@@ -33,6 +32,16 @@ class IdeaCreateRequest(BaseModel):
         if len(value.strip()) < 8:
             raise ValueError("投稿内容去除首尾空白后至少需要 8 个字符")
         return value
+
+
+class IdeaCreateRequest(IdeaContentRequest):
+    """创建点子所需的客户端输入。"""
+
+    submission_key: UUID4
+
+
+class IdeaSupplementRequest(IdeaContentRequest):
+    """补充信息并重新评估时提交的完整点子内容。"""
 
 
 class IdeaSummaryResponse(BaseModel):

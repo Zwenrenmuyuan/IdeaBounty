@@ -47,16 +47,27 @@ def list_admin_ideas(
     limit: int,
     offset: int,
 ) -> tuple[list[tuple[Idea, str]], int]:
-    """返回所有用户投稿的后台分页列表。"""
+    """只返回已经形成金额、可供管理员处理的有效投稿。"""
+
+    reviewable_filters = (
+        Idea.processing_status == IdeaProcessingStatus.COMPLETED.value,
+        Idea.input_decision == InputDecision.ACCEPT.value,
+        Idea.final_amount.is_not(None),
+    )
 
     rows = db_session.execute(
         select(Idea, User.username)
         .join(User, Idea.user_id == User.id)
-        .order_by(Idea.created_at.desc(), Idea.internal_id.desc())
+        .where(*reviewable_filters)
+        .order_by(
+            Idea.admin_action.is_(None).desc(),
+            Idea.created_at.desc(),
+            Idea.internal_id.desc(),
+        )
         .limit(limit)
         .offset(offset)
     ).all()
-    total = db_session.scalar(select(func.count(Idea.internal_id))) or 0
+    total = db_session.scalar(select(func.count(Idea.internal_id)).where(*reviewable_filters)) or 0
     return [(row[0], row[1]) for row in rows], total
 
 

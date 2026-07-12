@@ -21,6 +21,7 @@ from idea_bounty.schemas.idea import (
     IdeaListResponse,
     IdeaResponse,
     IdeaSummaryResponse,
+    IdeaSupplementRequest,
     PublicIdeaSummary,
     SimulatedPayoutResponse,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "IdeaListResponse",
     "IdeaResponse",
     "IdeaSummaryResponse",
+    "IdeaSupplementRequest",
     "LoginRequest",
     "PublicIdeaSummary",
     "RegisterRequest",

@@ -161,13 +161,13 @@ export function AdminIdeaListPage() {
 
           <section aria-labelledby="admin-ideas-heading">
             <h2 id="admin-ideas-heading" className="mb-3 text-lg font-semibold">
-              全部投稿
+              审核队列
             </h2>
 
             {items.length === 0 ? (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">暂无投稿</CardTitle>
+                  <CardTitle className="text-base">暂无可审核投稿</CardTitle>
                 </CardHeader>
               </Card>
             ) : (

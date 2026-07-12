@@ -200,6 +200,28 @@ def test_admin_list_detail_and_summary(
     }
 
 
+def test_admin_list_only_contains_reviewable_ideas(
+    client: TestClient,
+    db_session: Session,
+    evaluation_provider: FakeEvaluationProvider,
+) -> None:
+    evaluation_provider.outcomes = [
+        make_evaluation_output("clarify"),
+        make_evaluation_output("reject"),
+        make_evaluation_output("accept"),
+    ]
+    make_admin(client, db_session)
+    submit(client, "这是信息不足且需要用户继续补充的投稿")
+    submit(client, "这是会被输入门禁拒绝的无效投稿内容")
+    accepted_public_id = submit(client, "这是可以进入管理员审核队列的有效投稿")
+
+    response = client.get("/api/admin/ideas")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert [item["public_id"] for item in response.json()["items"]] == [accepted_public_id]
+
+
 def test_unknown_admin_idea_returns_not_found(
     client: TestClient,
     db_session: Session,

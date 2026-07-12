@@ -16,6 +16,14 @@ class SubmissionKeyConflictError(Exception):
     """同一用户将一个幂等键用于不同原文。"""
 
 
+class IdeaSupplementStateError(Exception):
+    """点子当前状态不允许补充后重新评估。"""
+
+
+class IdeaDeleteStateError(Exception):
+    """点子已经进入不可删除的业务阶段。"""
+
+
 @dataclass(frozen=True, slots=True)
 class IdeaCreationResult:
     """区分首次创建和幂等重放的服务结果。"""
@@ -134,6 +142,78 @@ def get_user_idea(db_session: Session, user_id: int, public_id: UUID) -> Idea | 
             Idea.public_id == public_id,
         )
     )
+
+
+def supplement_user_idea(
+    db_session: Session,
+    user_id: int,
+    public_id: UUID,
+    raw_content: str,
+) -> Idea | None:
+    """复用需补充记录，清空旧门禁结果并重新进入处理队列。"""
+
+    idea = db_session.scalar(
+        select(Idea)
+        .where(
+            Idea.user_id == user_id,
+            Idea.public_id == public_id,
+        )
+        .with_for_update()
+    )
+    if idea is None:
+        return None
+    if (
+        idea.processing_status != IdeaProcessingStatus.COMPLETED.value
+        or idea.input_decision != InputDecision.CLARIFY.value
+    ):
+        raise IdeaSupplementStateError
+
+    idea.raw_content = raw_content
+    idea.content_hash = calculate_content_hash(raw_content)
+    idea.processing_status = IdeaProcessingStatus.PENDING.value
+    idea.retry_count = 0
+    idea.input_decision = None
+    idea.decision_reason = None
+    idea.normalized_content = None
+    idea.dimension_scores = None
+    idea.evaluation_model = None
+    idea.evaluation_prompt_version = None
+    idea.evaluation_schema_version = None
+    idea.embedding = None
+    idea.embedding_model = None
+    idea.embedding_dimensions = None
+    idea.embedding_input_version = None
+    idea.failure_stage = None
+    idea.failure_code = None
+    idea.completed_at = None
+    idea.updated_at = func.now()
+    db_session.commit()
+    return idea
+
+
+def delete_user_idea(db_session: Session, user_id: int, public_id: UUID) -> bool | None:
+    """删除尚未形成有效评估结果的投稿。"""
+
+    idea = db_session.scalar(
+        select(Idea)
+        .where(
+            Idea.user_id == user_id,
+            Idea.public_id == public_id,
+        )
+        .with_for_update()
+    )
+    if idea is None:
+        return None
+    deletable_terminal = (
+        idea.processing_status == IdeaProcessingStatus.COMPLETED.value
+        and idea.input_decision in {InputDecision.CLARIFY.value, InputDecision.REJECT.value}
+    )
+    if idea.processing_status != IdeaProcessingStatus.FAILED.value and not deletable_terminal:
+        raise IdeaDeleteStateError
+
+    db_session.delete(idea)
+    db_session.commit()
+    return True
 
 
 def get_matched_public_id(db_session: Session, idea: Idea) -> UUID | None:
