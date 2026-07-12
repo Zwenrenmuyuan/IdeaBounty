@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Backend code lives in `backend/src/idea_bounty/`, migrations in `backend/alembic/`, and tests in `backend/tests/`. Frontend code lives in `frontend/src/`; use `pages/` for routes, `api/` for FastAPI calls, `components/` for UI, and `types/` for public contracts. Root `compose.yaml` starts PostgreSQL. Treat `技术方案.md` as the source. The backend loop and responsive user frontend are implemented; the administrator frontend is not.
+Backend code lives in `backend/src/idea_bounty/`, migrations in `backend/alembic/`, and tests in `backend/tests/`. Frontend code lives in `frontend/src/`; use `pages/` for routes, `api/` for FastAPI calls, `components/` for UI, and `types/` for public contracts. Root `compose.yaml` starts PostgreSQL. Treat `技术方案.md` as the source. The backend, responsive user frontend, and administrator frontend are implemented.
 
 ## Build, Test, and Development Commands
 

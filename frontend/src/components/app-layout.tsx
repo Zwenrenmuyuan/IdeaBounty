@@ -46,7 +46,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               提交点子
             </Link>
             {user?.role === "admin" && (
-              <span className="text-sm text-muted-foreground">管理后台</span>
+              <Link
+                to="/admin"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                管理后台
+              </Link>
             )}
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground hidden sm:inline">

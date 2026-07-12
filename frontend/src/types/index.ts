@@ -126,3 +126,46 @@ export interface PublicIdeaSummary {
   solution_outline: string | null;
   created_date: string;
 }
+
+/* ── 管理后台类型 ────────────────────────────────────────── */
+
+export interface AdminSummary {
+  total_submissions: number;
+  completed_accepts: number;
+  duplicate_count: number;
+  estimated_total: number;
+  confirmed_payout_count: number;
+  simulated_payout_total: number;
+}
+
+export interface AdminIdeaListItem {
+  public_id: string;
+  username: string;
+  generated_title: string | null;
+  processing_status: IdeaProcessingStatus;
+  input_decision: InputDecision | null;
+  commercial_score: number | null;
+  final_amount: number | null;
+  duplicate_verdict: DuplicateVerdict | null;
+  admin_action: AdminAction | null;
+  created_at: string;
+}
+
+export interface AdminIdeaListResponse {
+  items: AdminIdeaListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminIdeaDetailResponse {
+  username: string;
+  idea: IdeaResponse;
+  admin_reason: string | null;
+  admin_processed_at: string | null;
+}
+
+export type AdminIdeaProcessRequest =
+  | { action: "confirmed" }
+  | { action: "adjusted"; amount: number; reason: string }
+  | { action: "rejected"; reason: string };

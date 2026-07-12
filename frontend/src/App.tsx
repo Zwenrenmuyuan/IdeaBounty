@@ -6,6 +6,9 @@ import { IdeaCreatePage } from "@/pages/idea-create";
 import { IdeaDetailPage } from "@/pages/idea-detail";
 import { IdeaSummaryPage } from "@/pages/idea-summary";
 import { ProtectedRoute } from "@/components/protected-route";
+import { AdminRoute } from "@/components/admin-route";
+import { AdminIdeaListPage } from "@/pages/admin-idea-list";
+import { AdminIdeaDetailPage } from "@/pages/admin-idea-detail";
 
 export default function App() {
   return (
@@ -42,6 +45,22 @@ export default function App() {
           <ProtectedRoute>
             <IdeaSummaryPage />
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminIdeaListPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/ideas/:publicId"
+        element={
+          <AdminRoute>
+            <AdminIdeaDetailPage />
+          </AdminRoute>
         }
       />
       <Route path="/" element={<Navigate to="/ideas" replace />} />
